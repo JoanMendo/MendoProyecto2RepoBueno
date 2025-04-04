@@ -434,6 +434,10 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: 956118200475391074, guid: e4255f343d92b2e45a07829f7bcdd3ae, type: 3}
+      propertyPath: TilesLayer.m_Bits
+      value: 64
+      objectReference: {fileID: 0}
     - target: {fileID: 1892633075351900575, guid: e4255f343d92b2e45a07829f7bcdd3ae, type: 3}
       propertyPath: m_Name
       value: Cursor
@@ -452,7 +456,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 3066293669700548836, guid: e4255f343d92b2e45a07829f7bcdd3ae, type: 3}
       propertyPath: m_LocalPosition.z
-      value: -1.3921009
+      value: -25.8
       objectReference: {fileID: 0}
     - target: {fileID: 3066293669700548836, guid: e4255f343d92b2e45a07829f7bcdd3ae, type: 3}
       propertyPath: m_LocalRotation.w
@@ -489,32 +493,8 @@ PrefabInstance:
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents:
-    - targetCorrespondingSourceObject: {fileID: 1892633075351900575, guid: e4255f343d92b2e45a07829f7bcdd3ae, type: 3}
-      insertIndex: -1
-      addedObject: {fileID: 1058533391}
+    m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: e4255f343d92b2e45a07829f7bcdd3ae, type: 3}
---- !u!1 &1058533390 stripped
-GameObject:
-  m_CorrespondingSourceObject: {fileID: 1892633075351900575, guid: e4255f343d92b2e45a07829f7bcdd3ae, type: 3}
-  m_PrefabInstance: {fileID: 944049162}
-  m_PrefabAsset: {fileID: 0}
---- !u!114 &1058533391
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1058533390}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: eb478a578039e8b45935393864066bc8, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  mainCamera: {fileID: 0}
-  raycastLayer:
-    serializedVersion: 2
-    m_Bits: 51
 --- !u!1 &1344949444
 GameObject:
   m_ObjectHideFlags: 0
@@ -682,6 +662,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   map: {fileID: 0}
   nodePrefab: {fileID: 6154331640767468508, guid: 82442e1b1e754514eb494a25a1d81364, type: 3}
+  nodesList: []
   width: 8
   height: 8
 --- !u!1660057539 &9223372036854775807

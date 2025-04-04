@@ -2,13 +2,15 @@ using UnityEngine;
 using System.Collections.Generic;
 using UnityEngine.InputSystem;
 using System;
+using UnityEngine.InputSystem.Interactions;
 
 public class InputManager : MonoBehaviour, InputSystem_Actions.IUIActions
 {
     private InputSystem_Actions inputActions;
     public Vector2 MousePosition { get; private set; } //Posicion del mouse en la pantalla
 
-    public static event System.Action OnClicked; //Evento para el click izquierdo
+    public static event Action OnClicked; //Evento para el click izquierdo
+    public static event Action<Vector2> OnMouseMoved;
 
     private void Awake()
     {
@@ -44,12 +46,23 @@ public class InputManager : MonoBehaviour, InputSystem_Actions.IUIActions
     public void OnPoint(InputAction.CallbackContext context) //Posicion del mouse en la pantalla
    
     {
-        MousePosition = context.ReadValue<Vector2>();
+        if (context.performed) //Si el mouse se mueve
+        {
+            MousePosition = context.ReadValue<Vector2>(); //Lee la posicion del mouse
+            OnMouseMoved?.Invoke(MousePosition); //Invoca el evento OnMouseMoved si no es nulo
+        }
     }
 
     public void OnClick(InputAction.CallbackContext context) //Con que boton se hace click
     {
-        OnClicked?.Invoke(); //Invoca el evento OnClicked si no es nulo
+        if (context.performed && !context.canceled) //Si el click es realizado
+        {
+            Debug.Log("Click realizado en la posición: " + MousePosition); //Imprime la posicion del click
+            OnClicked?.Invoke(); //Invoca el evento OnClicked si no es nulo
+
+        }
+
+
     }
 
     public void OnRightClick(InputAction.CallbackContext context) //Con que boton se hace click derecho

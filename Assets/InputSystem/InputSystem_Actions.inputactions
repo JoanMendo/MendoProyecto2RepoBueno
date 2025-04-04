@@ -291,12 +291,12 @@
             "actions": [
                 {
                     "name": "Navigate",
-                    "type": "PassThrough",
+                    "type": "Value",
                     "id": "c95b2375-e6d9-4b88-9c4c-c5e76515df4b",
                     "expectedControlType": "Vector2",
                     "processors": "",
                     "interactions": "",
-                    "initialStateCheck": false
+                    "initialStateCheck": true
                 },
                 {
                     "name": "Submit",
@@ -327,9 +327,9 @@
                 },
                 {
                     "name": "Click",
-                    "type": "PassThrough",
+                    "type": "Value",
                     "id": "3c7022bf-7922-4f7c-a998-c437916075ad",
-                    "expectedControlType": "Button",
+                    "expectedControlType": "",
                     "processors": "",
                     "interactions": "",
                     "initialStateCheck": true

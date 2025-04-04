@@ -7,7 +7,6 @@ public class Node : MonoBehaviour
 {
     public Vector2 position; // Posición dentro de la cuadricula
     public bool hasIngredient = false;
-    public GameObject recurso;
 
 
 
@@ -15,10 +14,10 @@ public class Node : MonoBehaviour
     {
         if (recurso != null)
         {
-            hasIngredient = true;
-            GameObject ingredient = Instantiate(recurso, transform.position, Quaternion.identity);
-            ingredient.transform.SetParent(transform);
-            ingredient.transform.localPosition = Vector3.zero;
+            GameObject cilindro = Instantiate(recurso, gameObject.transform.position, gameObject.transform.rotation);
+            cilindro.transform.SetParent(gameObject.transform, true);
+            //cilindro.transform.localScale = prefabCilindro.transform.localScale;
+
         }
     }
 
