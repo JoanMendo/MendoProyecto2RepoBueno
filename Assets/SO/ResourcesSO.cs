@@ -10,5 +10,5 @@ public abstract class ResourcesSO : ScriptableObject
     public string Description;
     public float Price;
     public abstract void ActivarEfecto(List<Node> neighbors);
-    
+
 }

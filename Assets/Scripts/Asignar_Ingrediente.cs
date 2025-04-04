@@ -8,20 +8,8 @@ public class Asignar_Ingrediente : MonoBehaviour
     public GameObject cursor;
     
 
-    public void SetSprite(ResourcesSO recurso)
+    public void SetIngredient(ResourcesSO recurso)
     {
-        if (cursor != null)
-        {
-            SpriteRenderer cursorRenderer = cursor.GetComponent<SpriteRenderer>();
-            if (cursorRenderer != null)
-            {
-
-            }
-        }
-
-        if (asignar != null)
-        {
-            asignar.recurso = recurso;
-        }
+       
     }
 }

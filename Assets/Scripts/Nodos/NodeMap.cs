@@ -10,7 +10,7 @@ public class NodeMap : MonoBehaviour
     public Dictionary<int, Node> nodes = new Dictionary<int, Node>();
     public int width;
     public int height;
-    private int nodeCounter = 1;
+
 
     void Start()
     {
@@ -35,11 +35,6 @@ public class NodeMap : MonoBehaviour
         Vector3 startPosition = new Vector3(boxCollider.bounds.min.x + cellSize.x / 2,
                                               boxCollider.bounds.max.y,
                                               boxCollider.bounds.min.z + cellSize.z / 2);
-
-        // Calcular el tamaño total que ocuparán las casillas en cada dimensión
-        float totalWidth = cellSize.x * width;
-        float totalHeight = cellSize.z * height;
-
         for (int x = 0; x < width; x++)
         {
             for (int y = 0; y < height; y++)
@@ -77,6 +72,9 @@ public class NodeMap : MonoBehaviour
 
                 // Asignar la posición en coordenadas globales
                 casilla.transform.position = position;
+
+                casilla.GetComponent<Node>().position = new Vector2(x, y);
+
             }
         }
     }

@@ -12,6 +12,7 @@ GameObject:
   - component: {fileID: 224490613555872778}
   - component: {fileID: 6012278332152980864}
   - component: {fileID: 674257790190824662}
+  - component: {fileID: 3654242183860955794}
   m_Layer: 0
   m_Name: Casilla
   m_TagString: Untagged
@@ -108,3 +109,18 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
+--- !u!114 &3654242183860955794
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6154331640767468508}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 26ffe4e3979a09241b2fed249a8ea6f2, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  position: {x: 0, y: 0}
+  hasIngredient: 0
+  collider: {fileID: 0}
