@@ -7,7 +7,7 @@ public class NodeMap : MonoBehaviour
 {
     public GameObject map;
     public GameObject nodePrefab;
-    public Dictionary<int, Node> nodes = new Dictionary<int, Node>();
+    public List<GameObject> nodesList;
     public int width;
     public int height;
 
@@ -74,6 +74,7 @@ public class NodeMap : MonoBehaviour
                 casilla.transform.position = position;
 
                 casilla.GetComponent<Node>().position = new Vector2(x, y);
+                nodesList.Add(casilla);
 
             }
         }
