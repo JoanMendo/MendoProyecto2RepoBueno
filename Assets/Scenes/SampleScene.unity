@@ -663,8 +663,8 @@ MonoBehaviour:
   map: {fileID: 0}
   nodePrefab: {fileID: 6154331640767468508, guid: 82442e1b1e754514eb494a25a1d81364, type: 3}
   nodesList: []
-  width: 8
-  height: 8
+  width: 11
+  height: 11
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

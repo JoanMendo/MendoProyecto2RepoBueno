@@ -49,7 +49,6 @@ public class NodeMap : MonoBehaviour
                 BoxCollider casillaCollider = casilla.GetComponent<BoxCollider>();
                 if (casillaCollider == null)
                 {
-                    Debug.LogWarning("El prefab no tiene BoxCollider. Asegúrate de que cada casilla lo tenga.");
                     continue;
                 }
 
