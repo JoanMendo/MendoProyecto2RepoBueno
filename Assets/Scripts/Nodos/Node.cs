@@ -10,6 +10,7 @@ public class Node : MonoBehaviour
     public bool hasIngredient = false;
     private BoxCollider boxCollider;
     private ResourcesSO currentResource;
+    private GameObject ingrediente;
 
     public void Awake()
     {
@@ -24,19 +25,35 @@ public class Node : MonoBehaviour
         {
             //Instancia el modelo del ingrediente
             Vector3 center = new Vector3(boxCollider.bounds.center.x, boxCollider.bounds.max.y, boxCollider.bounds.center.z);
-            GameObject cilindro = Instantiate(recurso, center, gameObject.transform.rotation);
-            cilindro.transform.SetParent(gameObject.transform, true);
+            ingrediente = Instantiate(recurso, center, gameObject.transform.rotation);
+            
             if (NetworkManager.Singleton.IsServer)
             {
-                cilindro.GetComponent<Renderer>().material.color = Color.white;
+
+                ingrediente.GetComponent<Renderer>().material.color = Color.white;
+
+                ingrediente.GetComponent<NetworkObject>().SpawnAsPlayerObject(NetworkManager.Singleton.LocalClientId);
             }
             else if (NetworkManager.Singleton.IsClient)
             {
-                cilindro.GetComponent<Renderer>().material.color = Color.red;
+                ingrediente.GetComponent<Renderer>().material.color = Color.red;
+                SetIngredientServerRpc();
             }
 
             //Añade el ResourceSO del ingrediente
             currentResource = recurso.GetComponent<ResourcesSO>();
+
+            ingrediente.transform.SetParent(gameObject.transform, true);
+        }
+    }
+
+    [ServerRpc(RequireOwnership = false)]
+    public void SetIngredientServerRpc()
+    {
+
+        if (currentResource != null)
+        {
+            
         }
     }
 
