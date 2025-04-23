@@ -2,9 +2,11 @@
 using UnityEngine;
 using UnityEngine.Tilemaps;
 using System.Collections.Generic;
+using Unity.Netcode;
 
-public class NodeMap : MonoBehaviour
+public class NodeMap : NetworkBehaviour
 {
+
     public GameObject map;
     public GameObject nodePrefab;
     public List<GameObject> nodesList;
@@ -18,9 +20,9 @@ public class NodeMap : MonoBehaviour
         {
             map = gameObject;
         }
-        Generate3DTilemap();
+
     }
-    void Generate3DTilemap()
+    public void Generate3DTilemap()
     {
         BoxCollider boxCollider = map.GetComponent<BoxCollider>();
 
@@ -35,6 +37,7 @@ public class NodeMap : MonoBehaviour
         Vector3 startPosition = new Vector3(boxCollider.bounds.min.x + cellSize.x / 2,
                                               boxCollider.bounds.max.y,
                                               boxCollider.bounds.min.z + cellSize.z / 2);
+
         for (int x = 0; x < width; x++)
         {
             for (int y = 0; y < height; y++)
@@ -49,7 +52,7 @@ public class NodeMap : MonoBehaviour
                 BoxCollider casillaCollider = casilla.GetComponent<BoxCollider>();
                 if (casillaCollider == null)
                 {
-                    continue;
+                    continue;   
                 }
 
                 // Obtener el tamaño real del BoxCollider de la casilla
@@ -74,6 +77,8 @@ public class NodeMap : MonoBehaviour
 
                 casilla.GetComponent<Node>().position = new Vector2(x, y);
                 nodesList.Add(casilla);
+
+
 
             }
         }

@@ -1,9 +1,9 @@
+using Unity.Netcode;
 using UnityEngine;
 
-public class CursorManager : MonoBehaviour
+public class CursorManager : NetworkBehaviour
 {
     public Camera mainCamera; // Asigna la cámara principal en el Inspector
-    public LayerMask raycastLayer; // Define en qué capas puede hacer colisión el Raycast
     public LayerMask TilesLayer; // Define en qué capas puede hacer colisión el Raycast
     private InputManager inputManager;
     private Vector3 mousePosition;
@@ -57,18 +57,23 @@ public class CursorManager : MonoBehaviour
             // Realizar el raycast
             if (Physics.Raycast(ray, out hit, Mathf.Infinity, TilesLayer))
             {
-                // Verificar si el rayo colisiona con un objeto en la capa especificada
+                // Verificar si el rayo colisiona con un objeto en la capa especificada, para que solo interactue con las casillas
 
                 GameObject hitNode = hit.collider.gameObject;
 
-                if (hitNode.TryGetComponent<Node>(out Node node))
+                if (hitNode.TryGetComponent<Node>(out Node node) )
                 {
+                    
                     if (node.hasIngredient)
                     {
                         Debug.Log("El nodo ya tiene un ingrediente.");
                         return; // Si el nodo ya tiene un ingrediente, no hacer nada
                     }
-                    node.SetIngredient(currentResource);
+                    NetworkObject nodeNetworkObject = hitNode.GetComponent<NetworkObject>();
+                    if( nodeNetworkObject.OwnerClientId == NetworkManager.Singleton.LocalClientId)
+                    {
+                      node.SetNodeIngredient(currentResource);
+                    }
                 }
             }
 
