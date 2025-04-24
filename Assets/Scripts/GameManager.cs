@@ -43,14 +43,17 @@ public class GameManager : NetworkBehaviour
         var nodeMap = tablero.GetComponent<NodeMap>();
         nodeMap.Generate3DTilemap();
 
+        tablero.GetComponent<NetworkObject>().SpawnWithOwnership(clientId);
         // Spawnear nodos con ownership
         foreach (GameObject casilla in nodeMap.nodesList)
         {
+
             casilla.GetComponent<NetworkObject>().SpawnWithOwnership(clientId);
+
         }
 
         // Spawnear el tablero y darle ownership
-        tablero.GetComponent<NetworkObject>().SpawnWithOwnership(clientId);
+
     }
 
     private Vector3 GetSpawnPosition(ulong clientId)
