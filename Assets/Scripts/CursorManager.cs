@@ -1,10 +1,10 @@
 using Unity.Netcode;
 using UnityEngine;
 
-public class CursorManager : NetworkBehaviour
+public class CursorManager : MonoBehaviour
 {
     public Camera mainCamera; // Asigna la cámara principal en el Inspector
-    public LayerMask TilesLayer; // Define en qué capas puede hacer colisión el Raycast
+    public LayerMask InteractLayer; // Define en qué capas puede hacer colisión el Raycast
     private InputManager inputManager;
     private Vector3 mousePosition;
     public GameObject currentResource; // Referencia al objeto de recurso actual
@@ -26,12 +26,12 @@ public class CursorManager : NetworkBehaviour
 
     public void OnEnable()
     {
-        InputManager.OnClicked += TrySetIngredient;
+        InputManager.OnClicked += Interact;
         InputManager.OnMouseMoved += UpdateMousePosition;
     }
     public void OnDisable()
     {
-        InputManager.OnClicked -= TrySetIngredient;
+        InputManager.OnClicked -= Interact;
         InputManager.OnMouseMoved -= UpdateMousePosition;
     }
 
@@ -48,38 +48,35 @@ public class CursorManager : NetworkBehaviour
         transform.position = worldMousePosition;
     }
 
-    private void TrySetIngredient()
+    private void Interact()
     {
         if (currentResource != null)
         {
             RaycastHit hit;
             Ray ray = mainCamera.ScreenPointToRay(mousePosition); // Crear un rayo desde la cámara a la posición del mouse
-            // Realizar el raycast
-            if (Physics.Raycast(ray, out hit, Mathf.Infinity, TilesLayer))
+                                                                  // Realizar el raycast
+            if (Physics.Raycast(ray, out hit, Mathf.Infinity, InteractLayer))
             {
-                // Verificar si el rayo colisiona con un objeto en la capa especificada, para que solo interactue con las casillas
+                GameObject hitObject = hit.collider.gameObject;
 
-                GameObject hitNode = hit.collider.gameObject;
+                NetworkObject netObj = hitObject.GetComponentInParent<NetworkObject>();
 
-                if (hitNode.TryGetComponent<Node>(out Node node) )
+                if (netObj != null)
                 {
-                    
-                    if (node.hasIngredient)
+                    // Aquí usamos HasAuthority
+                    if (netObj.HasAuthority)
                     {
-                        Debug.Log("El nodo ya tiene un ingrediente.");
-                        return; // Si el nodo ya tiene un ingrediente, no hacer nada
+                        if (hitObject.TryGetComponent<IInteractuable>(out IInteractuable script))
+                        {
+                            script.Interactuar();
+                        }
                     }
-                    NetworkObject nodeNetworkObject = hitNode.GetComponent<NetworkObject>();
-                    if( nodeNetworkObject.OwnerClientId == NetworkManager.Singleton.LocalClientId)
+                    else
                     {
-                      node.SetNodeIngredient(currentResource);
+                        Debug.Log("No tienes autoridad sobre este objeto.");
                     }
                 }
             }
-
-
         }
     }
-
-
 }

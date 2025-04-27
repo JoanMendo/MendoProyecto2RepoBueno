@@ -13,7 +13,6 @@ public class NodeMap : NetworkBehaviour
     public int width;
     public int height;
 
-
     void Start()
     {
         if (map == null)
@@ -77,16 +76,9 @@ public class NodeMap : NetworkBehaviour
 
                 casilla.GetComponent<Node>().position = new Vector2(x, y);
                 nodesList.Add(casilla);
-
-
-
             }
         }
     }
-
-
-
-
 
 }
 
