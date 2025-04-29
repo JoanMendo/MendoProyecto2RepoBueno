@@ -23,6 +23,6 @@ public class Node : NetworkBehaviour, IInteractuable
     public void Interactuar()
     {
         if (hasIngredient) return; // Si el nodo ya tiene un ingrediente, no hacer nada
-       SetNodeIngredient(GameManager.Instance.currentIngredient); // Asigna el objeto de recurso actual al GameManager
+       SetNodeIngredient(LocalGameManager.Instance.currentIngredient); // Asigna el objeto de recurso actual al GameManager
     }
 }

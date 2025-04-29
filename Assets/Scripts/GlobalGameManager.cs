@@ -2,7 +2,7 @@ using UnityEngine;
 using Unity.Netcode;
 using System.Collections.Generic;
 
-public class GameStartManager : NetworkBehaviour
+public class GlobalGameManager : NetworkBehaviour
 {
     public GameObject tableroPrefab;
 
@@ -29,9 +29,6 @@ public class GameStartManager : NetworkBehaviour
         }
     }
 
-
-
-
     private void SpawnTableroForClient(ulong clientId)
     {
         Vector3 spawnPos = GetSpawnPosition(clientId);
@@ -51,9 +48,17 @@ public class GameStartManager : NetworkBehaviour
             casilla.GetComponent<NetworkObject>().SpawnWithOwnership(clientId);
 
         }
-
-        // Spawnear el tablero y darle ownership
-
+        /*
+        foreach (GameObject child in tablero.transform)
+        {
+            // Asignar ownership a los hijos del tablero
+            if (child.TryGetComponent<NetworkObject>(out NetworkObject networkChild))
+            {
+                networkChild.SpawnWithOwnership(clientId);
+            }
+            
+        }
+        */
     }
 
     private Vector3 GetSpawnPosition(ulong clientId)

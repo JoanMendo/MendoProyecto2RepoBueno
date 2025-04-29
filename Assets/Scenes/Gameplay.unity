@@ -201,6 +201,7 @@ GameObject:
   m_Component:
   - component: {fileID: 697972869}
   - component: {fileID: 697972870}
+  - component: {fileID: 697972871}
   m_Layer: 0
   m_Name: LocalGameManager
   m_TagString: Untagged
@@ -236,6 +237,23 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   currentIngredient: {fileID: 0}
+  actualmoney: 0
+--- !u!114 &697972871
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 697972868}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: be315c8adb71b15489eff6fe1709c64e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  turnoActual: 1
+  maxTurnos: 10
+  faseActual: 0
+  victoria: {fileID: 0}
 --- !u!1001 &837159363
 PrefabInstance:
   m_ObjectHideFlags: 0
