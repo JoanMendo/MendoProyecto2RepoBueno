@@ -209,7 +209,7 @@ GameObject:
   - component: {fileID: 3193559826938454347}
   - component: {fileID: 2829417847324586541}
   - component: {fileID: 2952775439325234548}
-  m_Layer: 7
+  m_Layer: 1
   m_Name: ReadyButton
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -263,6 +263,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 8bf42a1c190c4da43b94eaa26cce1d63, type: 2}
+  - {fileID: 2100000, guid: 95114da847b8dd44fa5c6e611bca6eb2, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -429,6 +430,14 @@ PrefabInstance:
       propertyPath: m_Name
       value: Remolacha
       objectReference: {fileID: 0}
+    - target: {fileID: 6184127629207734885, guid: 27d3968aaff90874384f06b1becb5791, type: 3}
+      propertyPath: m_Materials.Array.size
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 6184127629207734885, guid: 27d3968aaff90874384f06b1becb5791, type: 3}
+      propertyPath: 'm_Materials.Array.data[1]'
+      value: 
+      objectReference: {fileID: 2100000, guid: 95114da847b8dd44fa5c6e611bca6eb2, type: 2}
     - target: {fileID: 7816220357468687268, guid: 27d3968aaff90874384f06b1becb5791, type: 3}
       propertyPath: m_LocalScale.x
       value: 0.06666667
