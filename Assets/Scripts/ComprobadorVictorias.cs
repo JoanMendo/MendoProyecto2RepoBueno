@@ -31,7 +31,7 @@ public class ComprobadorVictoria : MonoBehaviour
         foreach (GameObject node in nodeMap.nodesList)
         {
             Node nodeComponent = node.GetComponent<Node>();
-            if (nodeComponent.hasIngredient)
+            if (nodeComponent.hasIngredient.Value)
             {
                 GameObject ingrediente = nodeComponent.currentIngredient;
                 IngredientesSO ingredienteSO = ingrediente.GetComponent<IngredientesSO>(); 

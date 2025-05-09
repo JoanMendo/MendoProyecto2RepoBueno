@@ -1,198 +1,319 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Reflection;
+﻿using System.Collections.Generic;
+using Unity.Netcode;
 using UnityEngine;
+using System.Linq;
 
-[System.Serializable]
-public class FormationPattern
+/// ‡‡<summary>_PLACEHOLDER‡‡
+/// Componente que detecta patrones de ingredientes en el tablero y aplica efectos
+/// ‡‡</summary>_PLACEHOLDER‡‡
+public class PatternDetector : NetworkBehaviour
 {
-    public string Name;                       // Nombre del patr�n
-    public string[] RequiredElements;         // Ingredientes necesarios
-    public Vector2[] Positions;            // Posiciones relativas
-     // Efecto a aplicar cuando se detecta
+    [Header("Configuración")]
+    [SerializeField] private bool detectarAutomaticamente = true;
+    [SerializeField] private float intervaloDeteccion = 0.5f;
+    [SerializeField] private bool mostrarDebug = false;
 
-    // Constructor para patrones basados en posiciones relativas e ingredientes
-    public FormationPattern(string name, string[] requiredElements, Vector2[] positions)
+    // Referencias y variables internas
+    private NodeMap nodeMap;
+    private List<PatternDefinitions.Patron> patrones = new List<PatternDefinitions.Patron>();
+    private List<PatternDefinitions.PatronDetectado> patronesActivos = new List<PatternDefinitions.PatronDetectado>();
+    private float ultimaDeteccion = 0f;
+
+    // Evento para notificar cuando se detecta un patrón
+    public delegate void PatronDetectadoHandler(PatternDefinitions.PatronDetectado patron);
+    public static event PatronDetectadoHandler OnPatronDetectado;
+
+    private void Start()
     {
-        Name = name;
-        RequiredElements = requiredElements;
-        Positions = positions;
-
-    }
-}
-
-public class PatternDetector : MonoBehaviour
-{
-    [SerializeField] private List<FormationPattern> patterns = new List<FormationPattern>();
-
-    private void Awake()
-    {
-        // Inicializar los patrones predefinidos
-        InitializePatterns();
-    }
-
-    private void InitializePatterns()
-    {
-        // Define tus patrones aqu� usando vectores de posiciones relativas
-        patterns.Add(new FormationPattern(
-            name: "L�nea Horizontal",
-            requiredElements: new string[] { "tomate", "tomate", "tomate" },
-            positions: new Vector2[] {
-                new Vector2(0, 0), new Vector2(1, 0), new Vector2(2, 0)
-            }
-
-        ));
-
-        patterns.Add(new FormationPattern(
-            name: "Cuadrado",
-            requiredElements: new string[] { "lechuga", "lechuga", "lechuga", "lechuga" },
-            positions: new Vector2[] {
-                new Vector2(0, 0), new Vector2(1, 0),
-                new Vector2(0, 1), new Vector2(1, 1)
-            }
-
-        ));
-
-        patterns.Add(new FormationPattern(
-            name: "L Shape",
-            requiredElements: new string[] { "cebolla", "cebolla", "cebolla", "cebolla" },
-            positions: new Vector2[] {
-                new Vector2(0, 0), new Vector2(0, 1),
-                new Vector2(0, 2), new Vector2(1, 0)
-            }
-        ));
-
-        // A�ade m�s patrones seg�n necesites
-    }
-
-    // M�todo principal que se llamar� desde NodeMap
-    public void DetectarFormaciones(List<GameObject> nodes)
-    {
-
-        foreach (var pattern in patterns)
+        // Obtener referencia al mapa de nodos
+        nodeMap = GetComponent<NodeMap>();
+        if (nodeMap == null)
         {
-            DetectarPatron(pattern, nodes);
+            Debug.LogError("PatternDetector requiere un NodeMap en el mismo GameObject");
+            enabled = false;
+            return;
+        }
+
+        // Cargar patrones predefinidos
+        patrones = PatternDefinitions.ObtenerPatronesDisponibles();
+
+        if (mostrarDebug)
+        {
+            Debug.Log($"PatternDetector inicializado con {patrones.Count} patrones");
         }
     }
 
-    // M�todo para detectar un patr�n espec�fico
-    private void DetectarPatron(FormationPattern pattern, List<GameObject> nodes)
+    private void Update()
     {
-        // Recorremos cada nodo como posible origen del patr�n
-        foreach (var startNodeEntry in nodes)
+        // Solo el servidor realiza la detección
+        if (!IsServer) return;
+
+        // Detección automática según intervalo
+        if (detectarAutomaticamente && Time.time - ultimaDeteccion > intervaloDeteccion)
         {
-            Node startNode = startNodeEntry.GetComponent<Node>();
-            if (!startNode.hasIngredient)
-                continue;
-
-
-
-            // Solo comprobamos si este nodo puede ser parte del patr�n buscado
-            if (!IsValidIngredientForPattern(startNode.currentIngredient.GetComponent<ResourcesSO>().Name, pattern.RequiredElements))
-                continue;
-
-            // Intentamos encontrar el patr�n comenzando desde este nodo
-            TryMatchPatternFromNode(startNode, pattern, nodes);
+            DetectarPatrones();
+            ultimaDeteccion = Time.time;
         }
     }
 
-    // Intenta hacer coincidir un patr�n desde un nodo espec�fico
-    private void TryMatchPatternFromNode(Node startNode, FormationPattern pattern, List<GameObject> nodes)
+    /// ‡‡<summary>_PLACEHOLDER‡‡
+    /// Detecta todos los patrones activos en el tablero
+    /// ‡‡</summary>_PLACEHOLDER‡‡
+    public void DetectarPatrones()
     {
-        // Para cada orientaci�n posible (0�, 90�, 180�, 270�)
-        for (int rotation = 0; rotation < 4; rotation++)
+        if (!IsServer || nodeMap == null) return;
+
+        // Lista para almacenar los nuevos patrones detectados
+        List<PatternDefinitions.PatronDetectado> nuevosPatrones = new List<PatternDefinitions.PatronDetectado>();
+
+        // Obtener todos los nodos del tablero
+        List<GameObject> nodos = nodeMap.nodesList;
+        if (nodos == null || nodos.Count == 0) return;
+
+        // Comprobar cada nodo como posible origen de un patrón
+        foreach (GameObject nodoOriginal in nodos)
         {
-            // Tambi�n comprobamos reflejos (para cada rotaci�n)
-            for (int reflection = 0; reflection < 2; reflection++)
+            Node nodoComp = nodoOriginal.GetComponent<Node>();
+            if (nodoComp == null || nodoComp.currentIngredient == null) continue;
+
+            // Comprobar cada patrón desde este nodo
+            foreach (PatternDefinitions.Patron patron in patrones)
             {
-                List<Node> matchingNodes = new List<Node>();
-                matchingNodes.Add(startNode); // El nodo inicial siempre forma parte
-                bool patternFound = true;
-
-                // Verificamos cada posici�n relativa en este patr�n (excepto la primera que es 0,0)
-                for (int i = 1; i < pattern.Positions.Length; i++)
+                // Probar todas las transformaciones del patrón
+                foreach (List<Vector2Int> transformacion in patron.GenerarTransformaciones())
                 {
-                    Vector2 relPos = pattern.Positions[i];
-
-                    // Aplicar rotaci�n y reflexi�n si es necesario
-                    Vector2 transformedPos = TransformPosition(relPos, rotation, reflection == 1);
-
-                    // Calcular la posici�n real en el tablero
-                    Vector2 targetPos = startNode.position + transformedPos;
-
-                    // Buscar el nodo en esa posici�n
-                    Node targetNode = FindNodeAtPosition(targetPos, nodes);
-
-                    // Verificar si existe un nodo ah� y si tiene el ingrediente correcto
-                    if (targetNode == null || !targetNode.currentIngredient)
+                    PatternDefinitions.PatronDetectado detectado = ComprobarPatron(nodoOriginal, patron, transformacion);
+                    if (detectado != null)
                     {
-                        patternFound = false;
-                        break;
+                        nuevosPatrones.Add(detectado);
+                        if (mostrarDebug)
+                        {
+                            Debug.Log($"Patrón '{patron.nombre}' detectado en {nodoComp.position}");
+                        }
                     }
+                }
+            }
+        }
 
-                    ResourcesSO targetResource = targetNode.GetComponent<ResourcesSO>(); 
-                    if (targetResource == null || !IsValidIngredientForPattern(targetResource.Name, pattern.RequiredElements))
+        // Aplicar nuevos patrones y notificar a los clientes
+        foreach (PatternDefinitions.PatronDetectado nuevo in nuevosPatrones)
+        {
+            // Verificar si ya existe este patrón
+            bool existente = false;
+            foreach (PatternDefinitions.PatronDetectado activo in patronesActivos)
+            {
+                if (SonPatronesIguales(nuevo, activo))
+                {
+                    existente = true;
+                    break;
+                }
+            }
+
+            if (!existente)
+            {
+                // Aplicar efecto
+                nuevo.AplicarEfecto();
+
+                // Notificar a los clientes
+                foreach (GameObject nodoObjetivo in nuevo.nodosObjetivo)
+                {
+                    NetworkObject netObj = nodoObjetivo.GetComponent<NetworkObject>();
+                    if (netObj != null)
                     {
-                        patternFound = false;
-                        break;
+                        NotificarEfectoClientRpc(
+                            nuevo.nombre,
+                            netObj.NetworkObjectId,
+                            nuevo.efecto.nombre,
+                            nuevo.efecto.colorEfecto
+                        );
                     }
-
-                    matchingNodes.Add(targetNode);
                 }
 
+                // Disparar evento
+                OnPatronDetectado?.Invoke(nuevo);
             }
         }
+
+        // Actualizar lista de patrones activos
+        patronesActivos = nuevosPatrones;
     }
 
-    // Transforma una posici�n relativa aplicando rotaci�n y/o reflexi�n
-    private Vector2 TransformPosition(Vector2 position, int rotation, bool reflection)
+    /// ‡‡<summary>_PLACEHOLDER‡‡
+    /// Comprueba si un patrón coincide desde un nodo específico
+    /// ‡‡</summary>_PLACEHOLDER‡‡
+    private PatternDefinitions.PatronDetectado ComprobarPatron(
+        GameObject nodoOrigen,
+        PatternDefinitions.Patron patron,
+        List<Vector2Int> transformacion)
     {
-        Vector2 transformed = position;
+        Node nodoOrigenComp = nodoOrigen.GetComponent<Node>();
+        if (nodoOrigenComp == null) return null;
 
-        // Aplicar reflexi�n (sobre el eje Y) si se requiere
-        if (reflection)
+        // Posición del nodo origen en la cuadrícula
+        Vector2Int posOrigen = new Vector2Int(
+            Mathf.RoundToInt(nodoOrigenComp.position.x),
+            Mathf.RoundToInt(nodoOrigenComp.position.y)
+        );
+
+        // Lista de nodos que coinciden con el patrón
+        List<GameObject> nodosCoincidentes = new List<GameObject>();
+        Dictionary<Vector2Int, GameObject> mapaPositionToNodo = new Dictionary<Vector2Int, GameObject>();
+
+        // Verificar cada posición relativa del patrón
+        foreach (Vector2Int posRelativa in transformacion)
         {
-            transformed.x = -transformed.x;
-        }
+            // Calcular posición absoluta en el tablero
+            Vector2Int posAbsoluta = posOrigen + posRelativa;
 
-        // Aplicar rotaci�n (en incrementos de 90 grados)
-        for (int i = 0; i < rotation; i++)
-        {
-            // Rotaci�n de 90 grados en sentido horario: (x,y) -> (y,-x)
-            float temp = transformed.x;
-            transformed.x = transformed.y;
-            transformed.y = -temp;
-        }
-
-        return transformed;
-    }
-
-    private Node FindNodeAtPosition(Vector2 position, List<GameObject> nodes)
-    {
-        foreach (var node in nodes)
-        {
-            Node nodeComponent = node.GetComponent<Node>();
-            if (nodeComponent.position == position)
+            // Buscar nodo en esta posición
+            GameObject nodo = null;
+            foreach (GameObject n in nodeMap.nodesList)
             {
-                return nodeComponent;
+                Node comp = n.GetComponent<Node>();
+                if (comp != null &&
+                    Mathf.RoundToInt(comp.position.x) == posAbsoluta.x &&
+                    Mathf.RoundToInt(comp.position.y) == posAbsoluta.y)
+                {
+                    nodo = n;
+                    break;
+                }
+            }
+
+            // Si no hay nodo en esta posición o no tiene ingrediente, no coincide
+            if (nodo == null)
+            {
+                return null;
+            }
+
+            Node nodoComp = nodo.GetComponent<Node>();
+            if (nodoComp == null || nodoComp.currentIngredient == null)
+            {
+                return null;
+            }
+
+            // Agregar a la lista de coincidencias
+            nodosCoincidentes.Add(nodo);
+            mapaPositionToNodo[posRelativa] = nodo;
+        }
+
+        // Verificar ingredientes requeridos
+        if (patron.ingredientesRequeridos.Count > 0)
+        {
+            HashSet<string> ingredientesEncontrados = new HashSet<string>();
+
+            foreach (GameObject nodo in nodosCoincidentes)
+            {
+                Node comp = nodo.GetComponent<Node>();
+                if (comp != null && comp.currentIngredient != null)
+                {
+                    // Aquí deberías obtener el nombre del ingrediente
+                    // Ejemplo: ingredientesEncontrados.Add(comp.currentIngredient.GetComponent<IngredienteSO>().nombre);
+                    ingredientesEncontrados.Add("NombreIngrediente"); // Reemplazar con el código real
+                }
+            }
+
+            // Verificar que todos los ingredientes requeridos estén presentes
+            foreach (string ingrediente in patron.ingredientesRequeridos)
+            {
+                if (!ingredientesEncontrados.Contains(ingrediente))
+                {
+                    return null;
+                }
             }
         }
-        return null;
-    }
 
-
-    // Verifica si un ingrediente es v�lido para el patr�n
-    private bool IsValidIngredientForPattern(string ingredientName, string[] requiredElements)
-    {
-        // Si el patr�n requiere ingredientes espec�ficos, verificar que coincida
-        if (requiredElements != null && requiredElements.Length > 0)
+        // Si llegamos aquí, el patrón coincide
+        PatternDefinitions.PatronDetectado resultado = new PatternDefinitions.PatronDetectado
         {
-            return Array.Exists(requiredElements, element => element == ingredientName);
+            nombre = patron.nombre,
+            nodos = nodosCoincidentes,
+            efecto = patron.efecto
+        };
+
+        // Determinar nodos objetivo según el modo configurado
+        switch (patron.modoObjetivo)
+        {
+            case PatternDefinitions.Patron.ModoObjetivo.TodosLosNodos:
+                resultado.nodosObjetivo = new List<GameObject>(nodosCoincidentes);
+                break;
+
+            case PatternDefinitions.Patron.ModoObjetivo.NodoCentral:
+                if (mapaPositionToNodo.ContainsKey(Vector2Int.zero))
+                {
+                    resultado.nodosObjetivo.Add(mapaPositionToNodo[Vector2Int.zero]);
+                }
+                else if (nodosCoincidentes.Count > 0)
+                {
+                    resultado.nodosObjetivo.Add(nodosCoincidentes[0]);
+                }
+                break;
+
+            case PatternDefinitions.Patron.ModoObjetivo.PosicionesEspecificas:
+                foreach (Vector2Int pos in patron.posicionesObjetivo)
+                {
+                    // Aquí debería transformar las posiciones objetivo según la transformación aplicada
+                    // Por simplicidad, usaremos las posiciones sin transformar
+                    if (mapaPositionToNodo.ContainsKey(pos))
+                    {
+                        resultado.nodosObjetivo.Add(mapaPositionToNodo[pos]);
+                    }
+                }
+                break;
         }
 
-        // Si no hay requisitos espec�ficos, cualquier ingrediente es v�lido
-        return true;
+        return resultado;
     }
 
- 
+    /// ‡‡<summary>_PLACEHOLDER‡‡
+    /// Compara dos patrones detectados para ver si son iguales
+    /// ‡‡</summary>_PLACEHOLDER‡‡
+    private bool SonPatronesIguales(PatternDefinitions.PatronDetectado patron1, PatternDefinitions.PatronDetectado patron2)
+    {
+        if (patron1.nombre != patron2.nombre) return false;
+        if (patron1.nodos.Count != patron2.nodos.Count) return false;
+
+        // Comparar contenido sin importar orden
+        HashSet<GameObject> set1 = new HashSet<GameObject>(patron1.nodos);
+        HashSet<GameObject> set2 = new HashSet<GameObject>(patron2.nodos);
+
+        return set1.SetEquals(set2);
+    }
+
+    /// ‡‡<summary>_PLACEHOLDER‡‡
+    /// Notifica a los clientes sobre un efecto aplicado
+    /// ‡‡</summary>_PLACEHOLDER‡‡
+    [ClientRpc]
+    private void NotificarEfectoClientRpc(
+        string nombrePatron,
+        ulong nodoId,
+        string nombreEfecto,
+        Color colorEfecto)
+    {
+        if (IsServer) return; // El servidor ya lo procesó
+
+        // Encontrar nodo por su ID
+        if (!NetworkManager.Singleton.SpawnManager.SpawnedObjects.TryGetValue(nodoId, out NetworkObject netObj))
+        {
+            return;
+        }
+
+        GameObject nodo = netObj.gameObject;
+
+        // Aplicar efectos visuales en el cliente
+        Debug.Log($"Efecto '{nombreEfecto}' aplicado por patrón '{nombrePatron}'");
+
+        // Aquí añadirías efectos visuales, como:
+        // - Destacar el nodo
+        // - Mostrar partículas
+        // - Mostrar texto flotante
+        // - Reproducir efectos de sonido
+    }
+
+    /// ‡‡<summary>_PLACEHOLDER‡‡
+    /// Método público para forzar la detección de patrones
+    /// ‡‡</summary>_PLACEHOLDER‡‡
+    public void ForzarDeteccion()
+    {
+        DetectarPatrones();
+    }
 }
