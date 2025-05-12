@@ -77,6 +77,11 @@ public class GlobalGameManager : NetworkBehaviour
         // Instanciar el tablero primero sin spawnearlo
         GameObject tablero = Instantiate(tableroPrefab);
 
+        // Añade 40 a la posicion Z por cada tablero existent
+
+        float zOffset = spawnedBoards.Count * 40f;
+        tablero.transform.position = new Vector3(0, 0, zOffset);
+
         // Obtener NodeMap y configurarlo antes del spawn
         NodeMap nodeMap = tablero.GetComponent<NodeMap>();
         if (nodeMap != null)
