@@ -154,11 +154,14 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   ShowTopMostFoldoutHeaderGroup: 1
-  map: {fileID: 3732377246760197467}
   nodePrefab: {fileID: 6154331640767468508, guid: 82442e1b1e754514eb494a25a1d81364, type: 3}
-  nodesList: []
   width: 11
   height: 11
+  boundingBox: {fileID: 0}
+  showDebugInfo: 1
+  showVisualDebugHelpers: 1
+  nodesList: []
+  ownerClientId: 0
 --- !u!114 &2520642721351433430
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -318,10 +321,11 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   ShowTopMostFoldoutHeaderGroup: 1
+  buttonRenderer: {fileID: 0}
+  readyColor: {r: 0, g: 1, b: 0, a: 1}
+  notReadyColor: {r: 1, g: 0, b: 0, a: 1}
   isReady:
     m_InternalValue: 0
-  color:
-    m_InternalValue: {r: 0, g: 0, b: 0, a: 0}
 --- !u!114 &2952775439325234548
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -334,7 +338,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d5a57f767e5e46a458fc5d3c628d0cbb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  GlobalObjectIdHash: 0
+  GlobalObjectIdHash: 1838605212
   InScenePlacedSourceGlobalObjectIdHash: 0
   DeferredDespawnTick: 0
   Ownership: 1

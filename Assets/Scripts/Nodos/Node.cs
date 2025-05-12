@@ -5,7 +5,7 @@ using UnityEngine;
 public class Node : NetworkBehaviour, IInteractuable
 {
     [Header("Posición")]
-    public Vector2 position;
+    public Vector2Int position;
 
     [Header("Estado")]
     public NetworkVariable<bool> hasIngredient = new NetworkVariable<bool>(false);
@@ -20,9 +20,8 @@ public class Node : NetworkBehaviour, IInteractuable
     public MeshRenderer meshRenderer;
     public BoxCollider nodeCollider;
 
-    // Referencia a NodeMap padre
-    private NodeMap nodeMap;
-
+    // Mantener la referencia a NodeMap para compatibilidad
+    [HideInInspector] public NodeMap nodeMap;
     // Materiales para estados visuales
     private Material materialNormal;
     private Material materialResaltado;
@@ -32,9 +31,12 @@ public class Node : NetworkBehaviour, IInteractuable
     private NetworkVariable<float> modificacionVida = new NetworkVariable<float>(0);
     private NetworkVariable<bool> esMovible = new NetworkVariable<bool>(true);
 
-    /// ‡‡<summary>_PLACEHOLDER‡‡
+    // Debug
+    [SerializeField] private bool mostrarDebug = false;
+
+    /// ‡‡‡‡<summary>_PLACEHOLDER‡‡_PLACEHOLDER‡‡
     /// Inicializa el nodo con referencias necesarias
-    /// ‡‡</summary>_PLACEHOLDER‡‡
+    /// ‡‡‡‡</summary>_PLACEHOLDER‡‡_PLACEHOLDER‡‡
     public void Initialize(NodeMap map)
     {
         nodeMap = map;
@@ -50,17 +52,17 @@ public class Node : NetworkBehaviour, IInteractuable
             materialNormal = meshRenderer.material;
     }
 
-    /// ‡‡<summary>_PLACEHOLDER‡‡
+    /// ‡‡‡‡<summary>_PLACEHOLDER‡‡_PLACEHOLDER‡‡
     /// Configura el material cuando el nodo está resaltado
-    /// ‡‡</summary>_PLACEHOLDER‡‡
+    /// ‡‡‡‡</summary>_PLACEHOLDER‡‡_PLACEHOLDER‡‡
     public void SetHighlightMaterial(Material material)
     {
         materialResaltado = material;
     }
 
-    /// ‡‡<summary>_PLACEHOLDER‡‡
+    /// ‡‡‡‡<summary>_PLACEHOLDER‡‡_PLACEHOLDER‡‡
     /// Resalta visualmente el nodo
-    /// ‡‡</summary>_PLACEHOLDER‡‡
+    /// ‡‡‡‡</summary>_PLACEHOLDER‡‡_PLACEHOLDER‡‡
     public void Highlight(bool isHighlighted)
     {
         if (meshRenderer == null) return;
@@ -75,26 +77,162 @@ public class Node : NetworkBehaviour, IInteractuable
         }
     }
 
-    /// ‡‡<summary>_PLACEHOLDER‡‡
+    /// ‡‡‡‡<summary>_PLACEHOLDER‡‡_PLACEHOLDER‡‡
     /// Método para interacción (implementa IInteractuable)
-    /// ‡‡</summary>_PLACEHOLDER‡‡
+    /// Permite colocar un ingrediente en el nodo
+    /// ‡‡‡‡</summary>_PLACEHOLDER‡‡_PLACEHOLDER‡‡
     public void Interactuar()
     {
-        // Implementar según las reglas del juego
-        // Por ejemplo, seleccionar el nodo para colocar ingredientes
-        SeleccionarNodoServerRpc();
+        // Verificar si tenemos autoridad sobre este nodo
+        if (!IsOwner && !IsServer)
+        {
+            if (mostrarDebug) Debug.Log("No tienes autoridad sobre este nodo");
+            return;
+        }
+
+        // No permitir interacción si ya hay un ingrediente
+        if (hasIngredient.Value)
+        {
+            if (mostrarDebug) Debug.Log("Ya hay un ingrediente en este nodo");
+            return;
+        }
+
+        // Obtener el ingrediente seleccionado desde el LocalGameManager
+        if (LocalGameManager.Instance == null)
+        {
+            if (mostrarDebug) Debug.LogError("LocalGameManager no encontrado");
+            return;
+        }
+
+        GameObject ingredienteSeleccionado = LocalGameManager.Instance.currentIngredient;
+        if (ingredienteSeleccionado == null)
+        {
+            if (mostrarDebug) Debug.Log("No hay ingrediente seleccionado");
+            return;
+        }
+
+        // Obtener el componente ResourcesSO o IngredienteSO
+        ResourcesSO datosPrefab = ingredienteSeleccionado.GetComponent<ResourcesSO>();
+        if (datosPrefab == null)
+        {
+            if (mostrarDebug) Debug.LogError("El ingrediente seleccionado no tiene el componente ResourcesSO");
+            return;
+        }
+
+        // Verificar si el jugador tiene suficiente dinero
+        float precio = datosPrefab.Price;
+        if (LocalGameManager.Instance.actualmoney < precio)
+        {
+            if (mostrarDebug) Debug.Log($"Dinero insuficiente: necesitas {precio}, tienes {LocalGameManager.Instance.actualmoney}");
+            return;
+        }
+
+        // Llamar al método para colocar el ingrediente en el servidor
+        string nombrePrefab = ingredienteSeleccionado.name;
+        if (mostrarDebug) Debug.Log($"Solicitando colocación de {nombrePrefab} en posición {position}");
+        PlaceIngredientServerRpc(nombrePrefab);
     }
 
+    /// ‡‡‡‡<summary>_PLACEHOLDER‡‡_PLACEHOLDER‡‡
+    /// RPC para solicitar al servidor que coloque un ingrediente
+    /// ‡‡‡‡</summary>_PLACEHOLDER‡‡_PLACEHOLDER‡‡
     [ServerRpc(RequireOwnership = false)]
-    private void SeleccionarNodoServerRpc()
+    private void PlaceIngredientServerRpc(string nombrePrefab)
     {
-        // Lógica de servidor para selección
-        Debug.Log($"Nodo {name} seleccionado en posición {position}");
+        // Verificar que no haya ingrediente ya
+        if (hasIngredient.Value)
+        {
+            if (mostrarDebug) Debug.Log("Ya hay un ingrediente en este nodo (verificación servidor)");
+            return;
+        }
+
+        // Buscar el prefab correspondiente
+        GameObject prefabIngrediente = BuscarPrefabIngrediente(nombrePrefab);
+        if (prefabIngrediente == null)
+        {
+            Debug.LogError($"No se encontró el prefab {nombrePrefab}");
+            return;
+        }
+
+        // Obtener el precio del ingrediente
+        ResourcesSO datos = prefabIngrediente.GetComponent<ResourcesSO>();
+        float precio = 0;
+        if (datos != null)
+        {
+            precio = datos.Price;
+        }
+
+        // Colocar el ingrediente usando el método existente
+        SetNodeIngredient(prefabIngrediente);
+
+        // Notificar al cliente (para efectos visuales, sonido, etc.)
+        IngredienteColocadoClientRpc(precio);
+
+        // Reducir el dinero del jugador
+        Economia economia = FindFirstObjectByType<Economia>();
+        if (economia != null)
+        {
+            economia.less_money(precio);
+        }
     }
 
-    /// ‡‡<summary>_PLACEHOLDER‡‡
+    /// ‡‡‡‡<summary>_PLACEHOLDER‡‡_PLACEHOLDER‡‡
+    /// Método auxiliar para buscar el prefab de ingrediente por nombre
+    /// ‡‡‡‡</summary>_PLACEHOLDER‡‡_PLACEHOLDER‡‡
+    private GameObject BuscarPrefabIngrediente(string nombrePrefab)
+    {
+        // Opción 1: Cargar desde Resources
+        GameObject prefab = Resources.Load<GameObject>($"Prefabs/Ingredients/{nombrePrefab}");
+
+        // Si no lo encontramos en Resources, buscamos en LocalGameManager
+        if (prefab == null && LocalGameManager.Instance != null)
+        {
+            // Asumiendo que hay una lista de prefabs en LocalGameManager
+            /*
+            foreach (var ingredientePrefab in LocalGameManager.Instance.ingredientePrefabs)
+            {
+                if (ingredientePrefab.name == nombrePrefab)
+                {
+                    prefab = ingredientePrefab;
+                    break;
+                }
+            }
+            */
+
+            // Otra opción: si LocalGameManager.currentIngredient tiene el mismo nombre
+            if (LocalGameManager.Instance.currentIngredient != null &&
+                LocalGameManager.Instance.currentIngredient.name == nombrePrefab)
+            {
+                prefab = LocalGameManager.Instance.currentIngredient;
+            }
+        }
+
+        return prefab;
+    }
+
+    /// ‡‡‡‡<summary>_PLACEHOLDER‡‡_PLACEHOLDER‡‡
+    /// Notifica a los clientes que se ha colocado un ingrediente
+    /// ‡‡‡‡</summary>_PLACEHOLDER‡‡_PLACEHOLDER‡‡
+    [ClientRpc]
+    private void IngredienteColocadoClientRpc(float precio)
+    {
+        // Efectos visuales o sonidos cuando se coloca un ingrediente
+        if (mostrarDebug) Debug.Log($"Ingrediente colocado con éxito en posición {position}");
+
+        // Actualizar LocalGameManager si es necesario
+        if (IsOwner && LocalGameManager.Instance != null)
+        {
+            // Actualizar dinero local si lo manejas así
+            LocalGameManager.Instance.actualmoney -= precio;
+        }
+
+        // Aquí podrías reproducir un sonido o efecto visual
+        // AudioSource.PlayClipAtPoint(sonidoColocacion, transform.position);
+    }
+
+    /// ‡‡‡‡<summary>_PLACEHOLDER‡‡_PLACEHOLDER‡‡
     /// Limpia cualquier ingrediente en este nodo
-    /// ‡‡</summary>_PLACEHOLDER‡‡
+    /// ‡‡‡‡</summary>_PLACEHOLDER‡‡_PLACEHOLDER‡‡
     public void ClearNodeIngredient()
     {
         if (!IsServer) return;
@@ -129,9 +267,9 @@ public class Node : NetworkBehaviour, IInteractuable
         }
     }
 
-    /// ‡‡<summary>_PLACEHOLDER‡‡
+    /// ‡‡‡‡<summary>_PLACEHOLDER‡‡_PLACEHOLDER‡‡
     /// Coloca un ingrediente en este nodo
-    /// ‡‡</summary>_PLACEHOLDER‡‡
+    /// ‡‡‡‡</summary>_PLACEHOLDER‡‡_PLACEHOLDER‡‡
     public void SetNodeIngredient(GameObject prefabIngrediente)
     {
         if (!IsServer) return;
@@ -151,9 +289,6 @@ public class Node : NetworkBehaviour, IInteractuable
             netObj.Spawn();
             currentIngredient = nuevoIngrediente;
             hasIngredient.Value = true;
-
-            // Activar efecto si aplica
-            ActivarEfectoIngrediente();
         }
         else
         {
@@ -162,9 +297,9 @@ public class Node : NetworkBehaviour, IInteractuable
         }
     }
 
-    /// ‡‡<summary>_PLACEHOLDER‡‡
+    /// ‡‡‡‡<summary>_PLACEHOLDER‡‡_PLACEHOLDER‡‡
     /// Activa el efecto del ingrediente colocado
-    /// ‡‡</summary>_PLACEHOLDER‡‡
+    /// ‡‡‡‡</summary>_PLACEHOLDER‡‡_PLACEHOLDER‡‡
     private void ActivarEfectoIngrediente()
     {
         if (!IsServer || currentIngredient == null) return;
@@ -177,10 +312,9 @@ public class Node : NetworkBehaviour, IInteractuable
         }
     }
 
-
-    /// ‡‡<summary>_PLACEHOLDER‡‡
+    /// ‡‡‡‡<summary>_PLACEHOLDER‡‡_PLACEHOLDER‡‡
     /// Aplica un efecto visual de utensilio sobre este nodo
-    /// ‡‡</summary>_PLACEHOLDER‡‡
+    /// ‡‡‡‡</summary>_PLACEHOLDER‡‡_PLACEHOLDER‡‡
     public void SetUtensilioVisual(ResourcesSO utensilio)
     {
         if (!IsServer) return;
@@ -226,36 +360,36 @@ public class Node : NetworkBehaviour, IInteractuable
         // Actualizar estado visual si es necesario
     }
 
-    /// ‡‡<summary>_PLACEHOLDER‡‡
+    /// ‡‡‡‡<summary>_PLACEHOLDER‡‡_PLACEHOLDER‡‡
     /// Modifica el rango de efectos en este nodo
-    /// ‡‡</summary>_PLACEHOLDER‡‡
+    /// ‡‡‡‡</summary>_PLACEHOLDER‡‡_PLACEHOLDER‡‡
     public void ModificarRango(int cantidad)
     {
         if (!IsServer) return;
         modificacionRango.Value += cantidad;
     }
 
-    /// ‡‡<summary>_PLACEHOLDER‡‡
+    /// ‡‡‡‡<summary>_PLACEHOLDER‡‡_PLACEHOLDER‡‡
     /// Modifica la vida del ingrediente en este nodo
-    /// ‡‡</summary>_PLACEHOLDER‡‡
+    /// ‡‡‡‡</summary>_PLACEHOLDER‡‡_PLACEHOLDER‡‡
     public void ModificarVida(float cantidad)
     {
         if (!IsServer) return;
         modificacionVida.Value += cantidad;
     }
 
-    /// ‡‡<summary>_PLACEHOLDER‡‡
+    /// ‡‡‡‡<summary>_PLACEHOLDER‡‡_PLACEHOLDER‡‡
     /// Establece si el ingrediente en este nodo puede moverse
-    /// ‡‡</summary>_PLACEHOLDER‡‡
+    /// ‡‡‡‡</summary>_PLACEHOLDER‡‡_PLACEHOLDER‡‡
     public void SetMovible(bool movible)
     {
         if (!IsServer) return;
         esMovible.Value = movible;
     }
 
-    /// ‡‡<summary>_PLACEHOLDER‡‡
+    /// ‡‡‡‡<summary>_PLACEHOLDER‡‡_PLACEHOLDER‡‡
     /// Obtiene el rango actual incluyendo modificadores
-    /// ‡‡</summary>_PLACEHOLDER‡‡
+    /// ‡‡‡‡</summary>_PLACEHOLDER‡‡_PLACEHOLDER‡‡
     public int GetRangoActual()
     {
         if (currentIngredient == null) return 0;
@@ -266,9 +400,9 @@ public class Node : NetworkBehaviour, IInteractuable
         return recurso.range + modificacionRango.Value;
     }
 
-    /// ‡‡<summary>_PLACEHOLDER‡‡
+    /// ‡‡‡‡<summary>_PLACEHOLDER‡‡_PLACEHOLDER‡‡
     /// Obtiene la vida actual incluyendo modificadores
-    /// ‡‡</summary>_PLACEHOLDER‡‡
+    /// ‡‡‡‡</summary>_PLACEHOLDER‡‡_PLACEHOLDER‡‡
     public float GetVidaActual()
     {
         if (currentIngredient == null) return 0;
@@ -279,9 +413,9 @@ public class Node : NetworkBehaviour, IInteractuable
         return recurso.vida + modificacionVida.Value;
     }
 
-    /// ‡‡<summary>_PLACEHOLDER‡‡
+    /// ‡‡‡‡<summary>_PLACEHOLDER‡‡_PLACEHOLDER‡‡
     /// Comprueba si el ingrediente en este nodo puede moverse
-    /// ‡‡</summary>_PLACEHOLDER‡‡
+    /// ‡‡‡‡</summary>_PLACEHOLDER‡‡_PLACEHOLDER‡‡
     public bool PuedeMoverse()
     {
         if (currentIngredient == null) return false;

@@ -202,6 +202,7 @@ GameObject:
   - component: {fileID: 697972869}
   - component: {fileID: 697972870}
   - component: {fileID: 697972871}
+  - component: {fileID: 697972872}
   m_Layer: 0
   m_Name: LocalGameManager
   m_TagString: Untagged
@@ -250,10 +251,28 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: be315c8adb71b15489eff6fe1709c64e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  turnoActual: 1
+  ShowTopMostFoldoutHeaderGroup: 1
   maxTurnos: 10
-  faseActual: 0
+  duracionFaseSegundos: 30
   victoria: {fileID: 0}
+  turnoActual:
+    m_InternalValue: 1
+  faseActual:
+    m_InternalValue: 0
+--- !u!114 &697972872
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 697972868}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 75dd665424e069347a7f4823f7f34001, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  nodeMap: {fileID: 0}
+  recetaMinimos: []
 --- !u!1001 &837159363
 PrefabInstance:
   m_ObjectHideFlags: 0

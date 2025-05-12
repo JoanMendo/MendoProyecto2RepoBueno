@@ -1,277 +1,317 @@
 ﻿
-using UnityEngine;
-using UnityEngine.Tilemaps;
+
 using System.Collections.Generic;
 using Unity.Netcode;
+using UnityEngine;
 
 public class NodeMap : NetworkBehaviour
 {
-    [Header("Configuración del Mapa")]
-    public GameObject map;
-    public GameObject nodePrefab;
-    public int width = 8;
-    public int height = 8;
-
-    [Header("Referencias")]
-    public List<GameObject> nodesList = new List<GameObject>();
+    [Header("Configuración de Cuadrícula")]
+    [SerializeField] public GameObject nodePrefab;
+    [SerializeField] private int width = 8;
+    [SerializeField] private int height = 8;
+    [SerializeField] private BoxCollider boundingBox;
 
     [Header("Depuración")]
-    [SerializeField] private bool autoGenerateOnStart = true;
-    [SerializeField] private bool showDebugInfo = true;
+    [SerializeField] private bool showDebugInfo = false;
+    [SerializeField] private bool showVisualDebugHelpers = false;
 
-    private Dictionary<Vector2Int, GameObject> nodesByPosition;
+    // Lista de nodos generados
+    public List<GameObject> nodesList = new List<GameObject>();
 
-    /// ‡‡<summary>_PLACEHOLDER‡‡
-    /// Inicialización cuando se activa el objeto
-    /// ‡‡</summary>_PLACEHOLDER‡‡
-    private void Awake()
-    {
-        if (map == null)
-        {
-            map = gameObject;
-        }
+    // Lista de objetos de depuración para poder limpiarlos
+    private List<GameObject> debugObjects = new List<GameObject>();
 
-        nodesByPosition = new Dictionary<Vector2Int, GameObject>();
-    }
+    // ID del cliente propietario (asignado por GlobalGameManager)
+    [HideInInspector] public ulong ownerClientId;
 
-    /// ‡‡<summary>_PLACEHOLDER‡‡
-    /// Al iniciar, generar mapa si está configurado para ello
-    /// ‡‡</summary>_PLACEHOLDER‡‡
+    // Flag para evitar generar nodos múltiples veces
+    private bool nodesGenerated = false;
+
     public override void OnNetworkSpawn()
     {
         base.OnNetworkSpawn();
 
-        // Solo el servidor genera el mapa
-        if (IsServer && autoGenerateOnStart)
+        if (IsServer)
         {
-            Generate3DTilemap();
+            if (showDebugInfo)
+            {
+                Debug.Log($"NodeMap: OnNetworkSpawn en servidor para tablero de cliente {ownerClientId}");
+            }
+
+            // Solo el servidor genera los nodos y solo una vez
+            if (!nodesGenerated)
+            {
+                GenerateGrid();
+            }
         }
     }
 
-    /// ‡‡<summary>_PLACEHOLDER‡‡
-    /// Genera un mapa 3D de nodos basado en la configuración
-    /// ‡‡</summary>_PLACEHOLDER‡‡
-    public void Generate3DTilemap()
+    // Método para limpiar objetos de depuración si es necesario
+    private void ClearDebugObjects()
     {
-        // Solo el servidor puede generar el mapa
-        if (!IsServer) return;
-
-        // Limpiar nodos existentes si los hay
-        foreach (var nodo in nodesList)
+        foreach (var obj in debugObjects)
         {
-            if (nodo != null)
-            {
-                NetworkObject netObj = nodo.GetComponent<NetworkObject>();
-                if (netObj != null && netObj.IsSpawned)
-                {
-                    netObj.Despawn();
-                }
-                Destroy(nodo);
-            }
+            if (obj != null)
+                Destroy(obj);
         }
-        nodesList.Clear();
-        nodesByPosition.Clear();
+        debugObjects.Clear();
+    }
 
-        // Verificar colisionador
-        BoxCollider boxCollider = map.GetComponent<BoxCollider>();
-        if (boxCollider == null)
+    public void GenerateGrid()
+    {
+        // Verificación crítica para evitar generación múltiple
+        if (nodesGenerated)
         {
-            Debug.LogError("El mapa necesita un BoxCollider para generar el grid");
+            Debug.LogWarning($"¡Se intentó generar la cuadrícula dos veces para el cliente {ownerClientId}!");
             return;
         }
 
-        // Obtener dimensiones del colisionador
-        Vector3 colliderSize = boxCollider.bounds.size;
-        Vector3 cellSize = new Vector3(colliderSize.x / width, colliderSize.y, colliderSize.z / height);
+        // Limpiar objetos de depuración anteriores
+        ClearDebugObjects();
 
-        // Calcular posición inicial
-        Vector3 startPosition = new Vector3(
-            boxCollider.bounds.min.x + cellSize.x / 2,
-            boxCollider.bounds.max.y,
-            boxCollider.bounds.min.z + cellSize.z / 2
-        );
-
-        // Generar nodos
-        for (int x = 0; x < width; x++)
+        if (showDebugInfo)
         {
-            for (int y = 0; y < height; y++)
+            Debug.Log($"Generando cuadrícula {width}x{height} para cliente {ownerClientId}");
+        }
+
+        // NUEVO: Buscar BoxCollider si no está asignado
+        if (boundingBox == null)
+        {
+            // Intentar obtenerlo del mismo objeto
+            boundingBox = GetComponent<BoxCollider>();
+
+            // Si aún no lo encuentra, buscarlo en hijos
+            if (boundingBox == null)
             {
-                // Crear e inicializar nodo
-                GameObject casilla = Instantiate(nodePrefab, map.transform);
-                NetworkObject netObj = casilla.GetComponent<NetworkObject>();
-                if (netObj != null)
-                {
-                    netObj.Spawn();
-                }
+                boundingBox = GetComponentInChildren<BoxCollider>();
+            }
 
-                // Configurar rotación para que coincida con el mapa
-                casilla.transform.rotation = map.transform.rotation;
+            // Si aún no lo encuentra, intentar en el padre
+            if (boundingBox == null && transform.parent != null)
+            {
+                boundingBox = transform.parent.GetComponent<BoxCollider>();
+            }
+        }
 
-                // Ajustar escala para que encaje en la celda
-                BoxCollider casillaCollider = casilla.GetComponent<BoxCollider>();
-                if (casillaCollider != null)
+        // DIAGNÓSTICO DETALLADO para entender el problema
+        if (showDebugInfo && boundingBox != null)
+        {
+            Debug.Log("------ DIAGNÓSTICO DETALLADO DEL TABLERO ------");
+            Debug.Log($"NodeMap Transform: Pos={transform.position}, Rot={transform.rotation.eulerAngles}, Scale={transform.localScale}");
+            Debug.Log($"BoxCollider Transform: Pos={boundingBox.transform.position}, Rot={boundingBox.transform.rotation.eulerAngles}, Scale={boundingBox.transform.localScale}");
+            Debug.Log($"BoxCollider Local: Center={boundingBox.center}, Size={boundingBox.size}");
+            Debug.Log($"BoxCollider World: Min={boundingBox.bounds.min}, Max={boundingBox.bounds.max}, Center={boundingBox.bounds.center}");
+
+            // Visualizar punto central y esquinas
+            CreateDebugSphere(boundingBox.bounds.center, Color.yellow, 0.3f);
+            CreateDebugSphere(boundingBox.bounds.min, Color.red);
+            CreateDebugSphere(boundingBox.bounds.max, Color.blue);
+            CreateDebugSphere(new Vector3(boundingBox.bounds.min.x, boundingBox.bounds.min.y, boundingBox.bounds.max.z), Color.green);
+            CreateDebugSphere(new Vector3(boundingBox.bounds.max.x, boundingBox.bounds.min.y, boundingBox.bounds.min.z), Color.magenta);
+
+            // Dibujar líneas del boundingBox
+            Debug.DrawLine(boundingBox.bounds.min,
+                          new Vector3(boundingBox.bounds.max.x, boundingBox.bounds.min.y, boundingBox.bounds.min.z),
+                          Color.red, 30f);
+            Debug.DrawLine(boundingBox.bounds.min,
+                          new Vector3(boundingBox.bounds.min.x, boundingBox.bounds.min.y, boundingBox.bounds.max.z),
+                          Color.green, 30f);
+            Debug.DrawLine(boundingBox.bounds.max,
+                          new Vector3(boundingBox.bounds.min.x, boundingBox.bounds.max.y, boundingBox.bounds.max.z),
+                          Color.blue, 30f);
+            Debug.DrawLine(boundingBox.bounds.max,
+                          new Vector3(boundingBox.bounds.max.x, boundingBox.bounds.max.y, boundingBox.bounds.min.z),
+                          Color.yellow, 30f);
+        }
+
+        // Crear nodos usando INTERPOLACIÓN CORRECTA
+        if (boundingBox != null)
+        {
+            for (int x = 0; x < width; x++)
+            {
+                for (int z = 0; z < height; z++)
                 {
-                    Vector3 casillaColliderSize = casillaCollider.bounds.size;
-                    Vector3 adjustedScale = new Vector3(
-                        cellSize.x / casillaColliderSize.x,
-                        cellSize.y / casillaColliderSize.y,
-                        cellSize.z / casillaColliderSize.z
+                    // Usar interpolación para distribuir uniformemente dentro del collider
+                    float percentX = width > 1 ? (float)x / (width - 1) : 0.5f;
+                    float percentZ = height > 1 ? (float)z / (height - 1) : 0.5f;
+
+                    // SOLUCIÓN 1: Calcular posición usando interpolación directa
+                    Vector3 minPos = boundingBox.bounds.min;
+                    Vector3 maxPos = boundingBox.bounds.max;
+
+                    // Calcular posición interpolada en el área del collider
+                    Vector3 nodePos = new Vector3(
+                        Mathf.Lerp(minPos.x, maxPos.x, percentX),
+                        minPos.y, // Mantener altura constante en el mínimo
+                        Mathf.Lerp(minPos.z, maxPos.z, percentZ)
                     );
-                    casilla.transform.localScale = adjustedScale * 0.95f; // Ligero espaciado
-                }
 
-                // Posicionar nodo
-                Vector3 position = startPosition + new Vector3(
-                    x * cellSize.x,
-                    0f,
-                    y * cellSize.z
-                );
-                casilla.transform.position = position;
+                    string nodeName = $"Node_{x}_{z}";
 
-                // Configurar componente Node
-                Node nodoComp = casilla.GetComponent<Node>();
-                if (nodoComp != null)
-                {
-                    Vector2Int coords = new Vector2Int(x, y);
-                    nodoComp.position = coords;
-                    nodoComp.Initialize(this);
+                    // IMPORTANTE: Usar la rotación del collider
+                    GameObject node = Instantiate(nodePrefab, nodePos, boundingBox.transform.rotation);
+                    node.name = nodeName;
 
-                    // Nombrar para depuración
-                    casilla.name = $"Node_{x}_{y}";
-                }
+                    // Configurar el nodo con referencias a su tablero "padre"
+                    Node nodeComponent = node.GetComponent<Node>();
+                    if (nodeComponent != null)
+                    {
+                        nodeComponent.position = new Vector2Int(x, z);
+                        nodeComponent.Initialize(this);
+                    }
 
-                // Guardar referencia
-                nodesList.Add(casilla);
-                nodesByPosition[new Vector2Int(x, y)] = casilla;
+                    // Spawn independiente
+                    NetworkObject nodeNetObj = node.GetComponent<NetworkObject>();
+                    if (nodeNetObj != null)
+                    {
+                        nodeNetObj.SpawnWithOwnership(ownerClientId);
+                    }
 
-                if (showDebugInfo)
-                {
-                    Debug.Log($"Nodo creado en ({x}, {y}) - Posición: {position}");
+                    // Añadir a la lista de nodos
+                    nodesList.Add(node);
+
+                    // Añadir elementos visuales de depuración
+                    if (showVisualDebugHelpers)
+                    {
+                        // Cubo para marcar la posición
+                        GameObject debugCube = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                        debugCube.transform.position = nodePos;
+                        debugCube.transform.rotation = boundingBox.transform.rotation; // Usar misma rotación
+                        debugCube.transform.localScale = Vector3.one * 0.2f;
+                        debugCube.GetComponent<Renderer>().material.color = Color.red;
+                        debugObjects.Add(debugCube);
+
+                        // Texto para mostrar coordenadas
+                        GameObject textObj = new GameObject($"Text_{x}_{z}");
+                        TextMesh text = textObj.AddComponent<TextMesh>();
+                        text.transform.position = nodePos + Vector3.up * 0.2f;
+                        text.text = $"({x},{z})";
+                        text.fontSize = 10;
+                        text.alignment = TextAlignment.Center;
+                        text.anchor = TextAnchor.MiddleCenter;
+                        textObj.transform.rotation = Quaternion.LookRotation(textObj.transform.position - Camera.main.transform.position);
+                        debugObjects.Add(textObj);
+
+                        if (showDebugInfo)
+                            Debug.Log($"Nodo {nodeName} creado en posición mundial {nodePos}, índice ({x},{z})");
+                    }
                 }
             }
         }
-
-        // Construir vecinos para cada nodo
-        foreach (var nodo in nodesList)
+        else
         {
-            Node nodeComp = nodo.GetComponent<Node>();
-            if (nodeComp != null)
-            {
-                CalcularVecinosNodo(nodeComp);
-            }
+            Debug.LogError("No se pudo encontrar BoxCollider para definir el área del tablero");
         }
 
-        Debug.Log($"Mapa generado: {width}x{height} = {nodesList.Count} nodos");
-    }
+        // Marcar como generado
+        nodesGenerated = true;
 
-    /// ‡‡<summary>_PLACEHOLDER‡‡
-    /// Calcula y asigna los nodos vecinos para un nodo específico
-    /// ‡‡</summary>_PLACEHOLDER‡‡
-    private void CalcularVecinosNodo(Node nodo)
-    {
-        Vector2Int pos = Vector2Int.RoundToInt(nodo.position);
-
-        // Definir direcciones adyacentes
-        Vector2Int[] direcciones = new Vector2Int[]
+        if (showDebugInfo)
         {
-            new Vector2Int(1, 0),   // Derecha
-            new Vector2Int(-1, 0),  // Izquierda
-            new Vector2Int(0, 1),   // Arriba
-            new Vector2Int(0, -1),  // Abajo
-            new Vector2Int(1, 1),   // Diagonal superior derecha
-            new Vector2Int(-1, 1),  // Diagonal superior izquierda
-            new Vector2Int(1, -1),  // Diagonal inferior derecha
-            new Vector2Int(-1, -1)  // Diagonal inferior izquierda
-        };
-
-        // Buscar vecinos en cada dirección
-        foreach (var dir in direcciones)
-        {
-            Vector2Int vecPos = pos + dir;
-            if (nodesByPosition.TryGetValue(vecPos, out GameObject vecino))
-            {
-                nodo.vecinos.Add(vecino);
-            }
+            Debug.Log($"Cuadrícula generada con éxito: {nodesList.Count} nodos para cliente {ownerClientId}");
         }
     }
 
-    /// ‡‡<summary>_PLACEHOLDER‡‡
-    /// Obtiene un nodo en la posición especificada
-    /// ‡‡</summary>_PLACEHOLDER‡‡
-    public GameObject GetNodeAtPosition(Vector2 position)
+    // Método auxiliar para crear esferas de depuración
+    private void CreateDebugSphere(Vector3 position, Color color, float scale = 0.2f)
     {
-        Vector2Int posInt = Vector2Int.RoundToInt(position);
-        if (nodesByPosition.TryGetValue(posInt, out GameObject nodo))
-        {
-            return nodo;
-        }
+        if (!showVisualDebugHelpers) return;
 
-        // Búsqueda alternativa si no está en el diccionario
-        foreach (var candidato in nodesList)
+        GameObject sphere = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        sphere.transform.position = position;
+        sphere.transform.localScale = Vector3.one * scale;
+        sphere.GetComponent<Renderer>().material.color = color;
+        debugObjects.Add(sphere);
+    }
+
+    // CORREGIDO: Método para obtener un nodo en una posición específica
+    public GameObject GetNodeAtPosition(Vector2Int position)
+    {
+        foreach (GameObject node in nodesList)
         {
-            Node componente = candidato.GetComponent<Node>();
-            if (componente != null && Vector2Int.RoundToInt(componente.position) == posInt)
+            Node nodeComp = node.GetComponent<Node>();
+            if (nodeComp != null &&
+                nodeComp.position.x == position.x &&
+                nodeComp.position.y == position.y)
             {
-                return candidato;
+                return node;
             }
         }
 
+        // Si no se encuentra, registrar para depuración
+        if (showDebugInfo)
+        {
+            Debug.LogWarning($"No se encontró nodo en posición ({position.x}, {position.y})");
+        }
         return null;
     }
 
-    /// ‡‡<summary>_PLACEHOLDER‡‡
-    /// Obtiene todos los nodos en una columna específica
-    /// ‡‡</summary>_PLACEHOLDER‡‡
-    public List<GameObject> GetNodesInColumn(int x)
+    // CORREGIDO: Método para obtener nodos adyacentes con manejo adecuado de tipos
+    public List<GameObject> GetAdjacentNodes(GameObject centerNode, int radius = 1)
     {
-        List<GameObject> resultado = new List<GameObject>();
-        foreach (var nodo in nodesList)
+        List<GameObject> adjacentNodes = new List<GameObject>();
+        Node centerNodeComp = centerNode.GetComponent<Node>();
+
+        if (centerNodeComp == null)
         {
-            Node componente = nodo.GetComponent<Node>();
-            if (componente != null && Mathf.RoundToInt(componente.position.x) == x)
+            if (showDebugInfo)
+                Debug.LogError("GetAdjacentNodes: El nodo central no tiene componente Node");
+            return adjacentNodes;
+        }
+
+        if (showDebugInfo)
+            Debug.Log($"Buscando nodos adyacentes a ({centerNodeComp.position.x}, {centerNodeComp.position.y}) con radio {radius}");
+
+        for (int dx = -radius; dx <= radius; dx++)
+        {
+            for (int dy = -radius; dy <= radius; dy++)
             {
-                resultado.Add(nodo);
+                // Saltar el nodo central
+                if (dx == 0 && dy == 0) continue;
+
+                // Asegurarnos que trabajamos con enteros
+                int posX = centerNodeComp.position.x + dx;
+                int posY = centerNodeComp.position.y + dy;
+
+                Vector2Int adjacentPos = new Vector2Int(posX, posY);
+
+                GameObject adjacentNode = GetNodeAtPosition(adjacentPos);
+                if (adjacentNode != null)
+                {
+                    adjacentNodes.Add(adjacentNode);
+
+                    if (showDebugInfo)
+                        Debug.Log($"Nodo adyacente encontrado en ({adjacentPos.x}, {adjacentPos.y})");
+                }
             }
         }
-        return resultado;
+
+        if (showDebugInfo)
+            Debug.Log($"Total de nodos adyacentes encontrados: {adjacentNodes.Count}");
+
+        return adjacentNodes;
     }
 
-    /// ‡‡<summary>_PLACEHOLDER‡‡
-    /// Obtiene todos los nodos en una fila específica
-    /// ‡‡</summary>_PLACEHOLDER‡‡
-    public List<GameObject> GetNodesInRow(int y)
+    // Método para DEBUG: Visualizar toda la cuadrícula
+    public void VisualizeGrid()
     {
-        List<GameObject> resultado = new List<GameObject>();
-        foreach (var nodo in nodesList)
+        if (!showVisualDebugHelpers) return;
+
+        ClearDebugObjects();
+
+        foreach (GameObject node in nodesList)
         {
-            Node componente = nodo.GetComponent<Node>();
-            if (componente != null && Mathf.RoundToInt(componente.position.y) == y)
+            Node nodeComp = node.GetComponent<Node>();
+            if (nodeComp != null)
             {
-                resultado.Add(nodo);
+                GameObject debugCube = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                debugCube.transform.position = node.transform.position;
+                debugCube.transform.rotation = node.transform.rotation;
+                debugCube.transform.localScale = Vector3.one * 0.2f;
+                debugCube.GetComponent<Renderer>().material.color = Color.green;
+                debugObjects.Add(debugCube);
             }
         }
-        return resultado;
     }
-
-    /// ‡‡<summary>_PLACEHOLDER‡‡
-    /// Procesa todos los efectos activos al final del turno
-    /// ‡‡</summary>_PLACEHOLDER‡‡
-    public void ProcesarEfectosTurno()
-    {
-        if (!IsServer) return;
-
-        // Encontrar todos los gestores de efectos
-        EfectoPicanteManager[] efectosPicantes = FindObjectsOfType<EfectoPicanteManager>();
-        EfectoEspecialManager[] efectosEspeciales = FindObjectsOfType<EfectoEspecialManager>();
-        EfectoBlancoManager[] efectosBlancos = FindObjectsOfType<EfectoBlancoManager>();
-
-        // Procesar cada tipo de efecto
-        foreach (var efecto in efectosPicantes) efecto.ProcesarTurno();
-        foreach (var efecto in efectosEspeciales) efecto.ProcesarTurno();
-        foreach (var efecto in efectosBlancos) efecto.ProcesarTurno();
-
-        Debug.Log($"Procesados {efectosPicantes.Length + efectosEspeciales.Length + efectosBlancos.Length} efectos activos");
-    }
-
 }
-

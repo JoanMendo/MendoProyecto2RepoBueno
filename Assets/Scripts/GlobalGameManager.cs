@@ -2,67 +2,123 @@ using UnityEngine;
 using Unity.Netcode;
 using System.Collections.Generic;
 
+
 public class GlobalGameManager : NetworkBehaviour
 {
-    public GameObject tableroPrefab;
+    [Header("Configuración")]
+    [SerializeField] private GameObject tableroPrefab;
 
-    private bool hasSpawnedTableros = false;
+    // Lista para rastrear los tableros generados
+    private List<GameObject> spawnedBoards = new List<GameObject>();
+
+    // Flag para evitar inicialización múltiple
+    private bool initialized = false;
 
     public override void OnNetworkSpawn()
     {
-        // Solo el servidor hace esto
-        if (IsServer && !hasSpawnedTableros)
+        base.OnNetworkSpawn();
+
+        // Verificar inicialización previa para evitar duplicados
+        if (initialized) return;
+
+        if (IsServer)
         {
+            Debug.Log($"GlobalGameManager: Inicializando en servidor. Clientes conectados: {NetworkManager.Singleton.ConnectedClientsIds.Count}");
             SpawnAllTableros();
-            hasSpawnedTableros = true;
-        }
 
-    }
+            // Suscribirse a eventos de conexión de nuevos clientes
+            NetworkManager.Singleton.OnClientConnectedCallback += OnClientConnected;
 
-    private void SpawnAllTableros()
-    {
-
-        foreach (var client in NetworkManager.Singleton.ConnectedClientsList)
-        {
-            ulong clientId = client.ClientId;
-            SpawnTableroForClient(clientId); // todos los tableros, uno por cliente
+            initialized = true;
         }
     }
 
-    private void SpawnTableroForClient(ulong clientId)
+    private void OnClientConnected(ulong clientId)
     {
-        Vector3 spawnPos = GetSpawnPosition(clientId);
-
-        // Instanciar el tablero
-        GameObject tablero = Instantiate(tableroPrefab, spawnPos, Quaternion.identity);
-
-        // Generar nodos del mapa
-        var nodeMap = tablero.GetComponent<NodeMap>();
-        nodeMap.Generate3DTilemap();
-
-        tablero.GetComponent<NetworkObject>().SpawnWithOwnership(clientId);
-        // Spawnear nodos con ownership
-        foreach (GameObject casilla in nodeMap.nodesList)
+        if (IsServer)
         {
-
-            casilla.GetComponent<NetworkObject>().SpawnWithOwnership(clientId);
-
+            Debug.Log($"Nuevo cliente conectado: {clientId}. Generando tablero...");
+            SpawnTableroForClient(clientId);
         }
-        /*
-        foreach (GameObject child in tablero.transform)
+    }
+
+    public void SpawnAllTableros()
+    {
+        Debug.Log($"Generando tableros para {NetworkManager.Singleton.ConnectedClientsIds.Count} clientes conectados");
+
+        foreach (ulong clientId in NetworkManager.Singleton.ConnectedClientsIds)
         {
-            // Asignar ownership a los hijos del tablero
-            if (child.TryGetComponent<NetworkObject>(out NetworkObject networkChild))
+            SpawnTableroForClient(clientId);
+        }
+    }
+
+    public void SpawnTableroForClient(ulong clientId)
+    {
+        // VERIFICAR si ya existe un tablero para este cliente
+        foreach (GameObject existingBoard in spawnedBoards)
+        {
+            if (existingBoard == null) continue; // Skip if destroyed
+
+            NetworkObject existingNetObj = existingBoard.GetComponent<NetworkObject>();
+            if (existingNetObj != null && existingNetObj.OwnerClientId == clientId)
             {
-                networkChild.SpawnWithOwnership(clientId);
+                Debug.Log($"El cliente {clientId} ya tiene un tablero asignado. Omitiendo creación duplicada.");
+                return; // Evitar duplicados
             }
-            
         }
-        */
+
+        // Instanciar el tablero primero sin spawnearlo
+        GameObject tablero = Instantiate(tableroPrefab);
+
+        // Obtener NodeMap y configurarlo antes del spawn
+        NodeMap nodeMap = tablero.GetComponent<NodeMap>();
+        if (nodeMap != null)
+        {
+            // Configurar propiedades antes de crear nodos
+            nodeMap.ownerClientId = clientId;
+        }
+        else
+        {
+            Debug.LogWarning("El tablero no tiene componente NodeMap!");
+        }
+
+        // Spawnear el tablero
+        NetworkObject tableNetObj = tablero.GetComponent<NetworkObject>();
+        if (tableNetObj != null)
+        {
+            Debug.Log($"Spawneando tablero para cliente {clientId}");
+            tableNetObj.SpawnWithOwnership(clientId);
+        }
+        else
+        {
+            Debug.LogError("¡El tablero no tiene NetworkObject! No puede ser spawneado.");
+            Destroy(tablero);
+            return;
+        }
+
+        // Registrar el tablero generado
+        spawnedBoards.Add(tablero);
     }
 
-    private Vector3 GetSpawnPosition(ulong clientId)
+
+    public void ResetInitialization()
     {
-        return new Vector3((int)clientId * 35f, 0f, 0f);
+        // Método para forzar reinicialización (útil para cambios de escena)
+        initialized = false;
+
+        // Limpiar lista de tableros, pero no destruirlos
+        // (La destrucción debería manejarse por el sistema de cambio de escena)
+        spawnedBoards.Clear();
+    }
+
+    public override void OnDestroy()
+    {
+        base.OnDestroy();
+
+        // Desuscribirse de eventos al destruir
+        if (NetworkManager.Singleton != null)
+        {
+            NetworkManager.Singleton.OnClientConnectedCallback -= OnClientConnected;
+        }
     }
 }
