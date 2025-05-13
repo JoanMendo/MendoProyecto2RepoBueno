@@ -3,7 +3,7 @@ using Unity.Netcode;
 
 public class Economia : NetworkBehaviour
 {
-    public NetworkVariable<float> money = new NetworkVariable<float>(0f);
+    public NetworkVariable<float> money = new NetworkVariable<float>(1000f);
     private NetworkVariable<int> multiplicador = new NetworkVariable<int>(1);
 
     [ServerRpc(RequireOwnership = false)]

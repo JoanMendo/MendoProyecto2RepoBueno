@@ -314,4 +314,68 @@ public class NodeMap : NetworkBehaviour
             }
         }
     }
+
+
+    // Método para activar todos los efectos en este tablero
+    public void ActivarTodosLosEfectos()
+    {
+        if (!IsServer) return;
+
+        // Recorrer todos los nodos y activar los efectos de sus ingredientes
+        foreach (var nodoObj in nodesList)
+        {
+            // Obtener el componente Node (en lugar de asumir que nodesList contiene Nodes)
+            Node nodo = nodoObj.GetComponent<Node>();
+
+            if (nodo != null && nodo.hasIngredient.Value)
+            {
+                ActivarEfectoIngrediente(nodo);
+            }
+        }
+    }
+
+    /// En la clase NodeMap
+    private void ActivarEfectoIngrediente(Node nodo)
+    {
+        if (nodo == null || !nodo.hasIngredient.Value || nodo.currentIngredient == null)
+            return;
+
+        // Obtener el tipo de ingrediente directamente del componente ResourcesSO
+        componente recursoIngrediente = nodo.currentIngredient.GetComponent<componente>();
+        if (recursoIngrediente == null)
+        {
+            Debug.LogWarning("El ingrediente no tiene componente ResourcesSO");
+            return;
+        }
+
+        string tipoIngrediente = recursoIngrediente.data.name;
+
+        // Obtener el ScriptableObject del ingrediente usando IngredientManager
+        IngredientesSO ingredienteSO = IngredientManager.Instance.GetIngredienteByName(tipoIngrediente);
+        if (ingredienteSO == null)
+        {
+            Debug.LogWarning($"No se encontró IngredientesSO para {tipoIngrediente}");
+            return;
+        }
+
+        // Calcular nodos afectados
+        List<GameObject> nodosAfectados = ingredienteSO.CalcularNodosAfectados(nodo.gameObject, this);
+
+        // Crear gestor de efecto
+        GameObject gestorObj = IngredientManager.Instance.CrearGestorEfecto(tipoIngrediente.ToLower());
+        if (gestorObj != null)
+        {
+            IEffectManager gestor = gestorObj.GetComponent<IEffectManager>();
+            if (gestor != null)
+            {
+                gestor.ConfigurarConIngrediente(ingredienteSO);
+                gestor.IniciarEfecto(nodo.gameObject, nodosAfectados);
+            }
+            else
+            {
+                Debug.LogError($"El gestor para {tipoIngrediente} no implementa IEffectManager");
+                Destroy(gestorObj);
+            }
+        }
+    }
 }

@@ -12,26 +12,36 @@ public class Oliva_V : IngredientesSO
 
     protected override void AplicarEfectoEspecifico(GameObject nodoOrigen, List<GameObject> nodosAfectados)
     {
-        foreach (var nodoVecino in nodosAfectados)
+        Debug.Log("Ejecutando efecto de Oliva_V");
+
+        // Verificar si hay nodos afectados
+        if (nodosAfectados.Count == 0) return;
+
+        // Usar el IngredientManager para crear el gestor de efecto
+        if (IngredientManager.Instance != null)
         {
-            Node nodo = nodoVecino.GetComponent<Node>();
-            if (nodo == null || !nodo.hasIngredient.Value || nodo.currentIngredient == null)
-                continue;
-
-            // Obtener el ingrediente del nodo vecino
-            ResourcesSO recursoVecino = nodo.currentIngredient.GetComponent<ResourcesSO>();
-            if (recursoVecino != null)
+            GameObject gestorObj = IngredientManager.Instance.CrearGestorEfecto("olivav");
+            if (gestorObj != null)
             {
-                // Reducir rango mediante un componente modificador
-                ModificadorRecurso modificador = nodo.currentIngredient.GetComponent<ModificadorRecurso>();
-                if (modificador == null)
+                IEffectManager gestor = gestorObj.GetComponent<IEffectManager>();
+                if (gestor != null)
                 {
-                    modificador = nodo.currentIngredient.AddComponent<ModificadorRecurso>();
-                }
+                    // Configurar el gestor con este ingrediente
+                    gestor.ConfigurarConIngrediente(this);
 
-                modificador.DisminuirRango(reduccionRango);
-                Debug.Log($"Oliva V disminuyó el rango de {recursoVecino.Name} en {reduccionRango}");
+                    // Iniciar el efecto usando la interfaz estandarizada
+                    gestor.IniciarEfecto(nodoOrigen, nodosAfectados);
+                }
+                else
+                {
+                    Debug.LogError("El gestor de efectos de Oliva_V no implementa IEffectManager");
+                    Destroy(gestorObj);
+                }
             }
+        }
+        else
+        {
+            Debug.LogError("No se encontró IngredientManager para el efecto Oliva_V");
         }
     }
 }

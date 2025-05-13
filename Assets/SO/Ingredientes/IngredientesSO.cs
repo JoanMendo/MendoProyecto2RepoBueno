@@ -10,15 +10,11 @@ using UnityEngine;
 [CreateAssetMenu(fileName = "New Ingredient", menuName = "CookingGame/Resources/Ingredient")]
 public class IngredientesSO : ResourcesSO
 {
-    [Header("Propiedades de Ingrediente")]
-    [Tooltip("Categoría del ingrediente (verdura, carne, etc.)")]
-    public string categoria;
+  
 
-    [Tooltip("Valor nutricional del ingrediente")]
-    public float valorNutricional;
+    
 
-    [Tooltip("Si este ingrediente es básico o procesado")]
-    public bool esBasico = true;
+    
 
     /// ‡‡<summary>_PLACEHOLDER‡‡
     /// Activa el efecto específico del ingrediente

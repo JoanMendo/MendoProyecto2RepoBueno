@@ -11,6 +11,8 @@ public class Node : NetworkBehaviour, IInteractuable
     public NetworkVariable<bool> hasIngredient = new NetworkVariable<bool>(false);
     public NetworkVariable<bool> hasUtensilio = new NetworkVariable<bool>(false);
 
+   
+
     [Header("Referencias")]
     public GameObject currentIngredient;
     public GameObject currentUtensilio;
@@ -83,53 +85,59 @@ public class Node : NetworkBehaviour, IInteractuable
     /// ‡‡‡‡</summary>_PLACEHOLDER‡‡_PLACEHOLDER‡‡
     public void Interactuar()
     {
-        // Verificar si tenemos autoridad sobre este nodo
+        Debug.Log($"[Node {position}] Inicia Interactuar()");
+
+        // Verificar autoridad
+        Debug.Log($"[Node {position}] Verificando autoridad: IsOwner={IsOwner}, IsServer={IsServer}");
         if (!IsOwner && !IsServer)
         {
-            if (mostrarDebug) Debug.Log("No tienes autoridad sobre este nodo");
+            Debug.Log($"[Node {position}] No tiene autoridad para interactuar");
             return;
         }
 
-        // No permitir interacción si ya hay un ingrediente
+        // Verificar si ya hay ingrediente
+        Debug.Log($"[Node {position}] Verificando estado: hasIngredient={hasIngredient.Value}");
         if (hasIngredient.Value)
         {
-            if (mostrarDebug) Debug.Log("Ya hay un ingrediente en este nodo");
+            Debug.Log($"[Node {position}] Ya hay un ingrediente en este nodo");
             return;
         }
 
-        // Obtener el ingrediente seleccionado desde el LocalGameManager
+        // Verificar LocalGameManager
+        Debug.Log($"[Node {position}] Verificando LocalGameManager: {(LocalGameManager.Instance != null ? "Encontrado" : "NO ENCONTRADO")}");
         if (LocalGameManager.Instance == null)
         {
-            if (mostrarDebug) Debug.LogError("LocalGameManager no encontrado");
+            Debug.LogError($"[Node {position}] Error crítico: LocalGameManager.Instance es null");
             return;
         }
 
+        // Verificar ingrediente seleccionado
         GameObject ingredienteSeleccionado = LocalGameManager.Instance.currentIngredient;
-        if (ingredienteSeleccionado == null)
+        ResourcesSO datosPrefab = LocalGameManager.Instance.currentIngredientData;
+
+        Debug.Log($"[Node {position}] Ingrediente actual: {(ingredienteSeleccionado != null ? ingredienteSeleccionado.name : "NINGUNO")}");
+        Debug.Log($"[Node {position}] Datos ingrediente: {(datosPrefab != null ? datosPrefab.Name : "NINGUNO")}");
+
+        if (ingredienteSeleccionado == null || datosPrefab == null)
         {
-            if (mostrarDebug) Debug.Log("No hay ingrediente seleccionado");
+            Debug.Log($"[Node {position}] No hay ingrediente seleccionado o datos válidos");
             return;
         }
 
-        // Obtener el componente ResourcesSO o IngredienteSO
-        ResourcesSO datosPrefab = ingredienteSeleccionado.GetComponent<ResourcesSO>();
-        if (datosPrefab == null)
-        {
-            if (mostrarDebug) Debug.LogError("El ingrediente seleccionado no tiene el componente ResourcesSO");
-            return;
-        }
-
-        // Verificar si el jugador tiene suficiente dinero
+        // Verificar dinero
         float precio = datosPrefab.Price;
-        if (LocalGameManager.Instance.actualmoney < precio)
+        float dineroActual = LocalGameManager.Instance.actualmoney;
+        Debug.Log($"[Node {position}] Verificando dinero: Precio={precio}, Dinero actual={dineroActual}");
+
+        if (dineroActual < precio)
         {
-            if (mostrarDebug) Debug.Log($"Dinero insuficiente: necesitas {precio}, tienes {LocalGameManager.Instance.actualmoney}");
+            Debug.Log($"[Node {position}] Dinero insuficiente: necesitas {precio}, tienes {dineroActual}");
             return;
         }
 
-        // Llamar al método para colocar el ingrediente en el servidor
+        // Llamar al ServerRpc
         string nombrePrefab = ingredienteSeleccionado.name;
-        if (mostrarDebug) Debug.Log($"Solicitando colocación de {nombrePrefab} en posición {position}");
+        Debug.Log($"[Node {position}] Llamando PlaceIngredientServerRpc con {nombrePrefab}");
         PlaceIngredientServerRpc(nombrePrefab);
     }
 
@@ -155,11 +163,11 @@ public class Node : NetworkBehaviour, IInteractuable
         }
 
         // Obtener el precio del ingrediente
-        ResourcesSO datos = prefabIngrediente.GetComponent<ResourcesSO>();
+        componente datos = prefabIngrediente.GetComponent<componente>();
         float precio = 0;
         if (datos != null)
         {
-            precio = datos.Price;
+            precio = datos.data.Price;
         }
 
         // Colocar el ingrediente usando el método existente
@@ -181,33 +189,29 @@ public class Node : NetworkBehaviour, IInteractuable
     /// ‡‡‡‡</summary>_PLACEHOLDER‡‡_PLACEHOLDER‡‡
     private GameObject BuscarPrefabIngrediente(string nombrePrefab)
     {
-        // Opción 1: Cargar desde Resources
-        GameObject prefab = Resources.Load<GameObject>($"Prefabs/Ingredients/{nombrePrefab}");
+        Debug.Log($"[SERVER] Buscando prefab: {nombrePrefab}");
 
-        // Si no lo encontramos en Resources, buscamos en LocalGameManager
-        if (prefab == null && LocalGameManager.Instance != null)
+        // OPCIÓN 1: Resources.Load
+        GameObject prefab = Resources.Load<GameObject>($"Prefabs/Ingredients(Network)/{nombrePrefab}");
+        if (prefab != null)
         {
-            // Asumiendo que hay una lista de prefabs en LocalGameManager
-            /*
-            foreach (var ingredientePrefab in LocalGameManager.Instance.ingredientePrefabs)
-            {
-                if (ingredientePrefab.name == nombrePrefab)
-                {
-                    prefab = ingredientePrefab;
-                    break;
-                }
-            }
-            */
-
-            // Otra opción: si LocalGameManager.currentIngredient tiene el mismo nombre
-            if (LocalGameManager.Instance.currentIngredient != null &&
-                LocalGameManager.Instance.currentIngredient.name == nombrePrefab)
-            {
-                prefab = LocalGameManager.Instance.currentIngredient;
-            }
+            Debug.Log($"[SERVER] Prefab encontrado en Resources: {prefab.name}");
+            return prefab;
         }
 
-        return prefab;
+        
+
+        // OPCIÓN 3: Usar LocalGameManager como último recurso
+        if (LocalGameManager.Instance != null &&
+            LocalGameManager.Instance.currentIngredient != null &&
+            LocalGameManager.Instance.currentIngredient.name == nombrePrefab)
+        {
+            Debug.Log($"[SERVER] Prefab encontrado en LocalGameManager: {LocalGameManager.Instance.currentIngredient.name}");
+            return LocalGameManager.Instance.currentIngredient;
+        }
+
+        Debug.LogError($"[SERVER] No se pudo encontrar ningún prefab con nombre: {nombrePrefab}");
+        return null;
     }
 
     /// ‡‡‡‡<summary>_PLACEHOLDER‡‡_PLACEHOLDER‡‡

@@ -20,17 +20,34 @@ public class CursorManager : MonoBehaviour
         {
             Debug.LogError("No se encontró el InputManager en la escena.");
         }
-      
+
     }
 
 
     public void OnEnable()
     {
-        InputManager.OnClicked += Interact;
-        InputManager.OnMouseMoved += UpdateMousePosition;
+        Debug.Log($"[CursorManager] OnEnable - Suscribiendo a eventos. InputManager: {inputManager != null}");
+
+        if (inputManager == null)
+        {
+            inputManager = FindFirstObjectByType<InputManager>();
+            Debug.Log($"[CursorManager] Buscando InputManager: {inputManager != null}");
+        }
+
+        if (inputManager != null)
+        {
+            InputManager.OnClicked += Interact;
+            InputManager.OnMouseMoved += UpdateMousePosition;
+            Debug.Log("[CursorManager] Suscripción a eventos completada");
+        }
+        else
+        {
+            Debug.LogError("[CursorManager] ¡ERROR! No se pudo encontrar InputManager");
+        }
     }
     public void OnDisable()
     {
+        Debug.Log("[CursorManager] OnDisable - Desuscribiendo de eventos");
         InputManager.OnClicked -= Interact;
         InputManager.OnMouseMoved -= UpdateMousePosition;
     }
@@ -50,33 +67,86 @@ public class CursorManager : MonoBehaviour
 
     private void Interact()
     {
-        if (currentResource != null)
+        Debug.Log("[CursorManager] Método Interact llamado");
+
+        if (currentResource == null)
         {
-            RaycastHit hit;
-            Ray ray = mainCamera.ScreenPointToRay(mousePosition); // Crear un rayo desde la cámara a la posición del mouse
-                                                                  // Realizar el raycast
-            if (Physics.Raycast(ray, out hit, Mathf.Infinity, InteractLayer))
+            Debug.LogWarning("No hay recurso seleccionado. El raycast no se ejecutará.");
+            return;
+        }
+
+        RaycastHit hit;
+        Ray ray = mainCamera.ScreenPointToRay(mousePosition);
+
+        // DIAGNÓSTICO 1: Visualizar el rayo
+        Debug.DrawRay(ray.origin, ray.direction * 100f, Color.red, 5f);
+        Debug.Log($"Lanzando raycast desde {ray.origin} en dirección {ray.direction}");
+
+        // DIAGNÓSTICO 2: Verificar la capa (layer mask)
+        Debug.Log($"Usando layer mask: {InteractLayer.value} ({LayerMaskToString(InteractLayer)})");
+
+        // DIAGNÓSTICO 3: Raycast contra todas las capas para comparar
+        bool hitAnything = Physics.Raycast(ray, out RaycastHit generalHit);
+        if (hitAnything)
+        {
+            Debug.Log($"Raycast sin filtro golpeó: {generalHit.collider.gameObject.name} en capa {LayerMaskToString(1 << generalHit.collider.gameObject.layer)}");
+        }
+        else
+        {
+            Debug.LogWarning("Raycast sin filtro no golpeó nada. Esto es muy extraño.");
+        }
+
+        // Raycast original con la capa específica
+        if (Physics.Raycast(ray, out hit, Mathf.Infinity, InteractLayer))
+        {
+            GameObject hitObject = hit.collider.gameObject;
+            Debug.Log($"¡ÉXITO! Raycast golpeó: {hitObject.name} en posición {hit.point}");
+
+            NetworkObject netObj = hitObject.GetComponentInParent<NetworkObject>();
+            if (netObj != null)
             {
-                GameObject hitObject = hit.collider.gameObject;
+                Debug.Log($"NetworkObject encontrado: HasAuthority={netObj.HasAuthority}, OwnerClientId={netObj.OwnerClientId}");
 
-                NetworkObject netObj = hitObject.GetComponentInParent<NetworkObject>();
-
-                if (netObj != null)
+                if (netObj.HasAuthority)
                 {
-                    // Aquí usamos HasAuthority
-                    if (netObj.HasAuthority)
+                    if (hitObject.TryGetComponent<IInteractuable>(out IInteractuable script))
                     {
-                        if (hitObject.TryGetComponent<IInteractuable>(out IInteractuable script))
-                        {
-                            script.Interactuar();
-                        }
+                        Debug.Log($"Ejecutando Interactuar() en {hitObject.name}");
+                        script.Interactuar();
                     }
                     else
                     {
-                        Debug.Log("No tienes autoridad sobre este objeto.");
+                        Debug.LogWarning($"El objeto {hitObject.name} no implementa IInteractuable");
                     }
                 }
+                else
+                {
+                    Debug.Log($"No tienes autoridad sobre este objeto. Client={NetworkManager.Singleton.LocalClientId}, Owner={netObj.OwnerClientId}");
+                }
+            }
+            else
+            {
+                Debug.LogWarning($"El objeto {hitObject.name} no tiene NetworkObject");
             }
         }
+        else
+        {
+            Debug.LogError("Raycast con capa específica no golpeó nada. Es probable que los nodos no estén en la capa correcta.");
+        }
+    }
+
+
+    // Método auxiliar para mostrar nombres de capas
+    private string LayerMaskToString(LayerMask mask)
+    {
+        var layers = new System.Collections.Generic.List<string>();
+        for (int i = 0; i < 32; i++)
+        {
+            if (((1 << i) & mask) != 0)
+            {
+                layers.Add(LayerMask.LayerToName(i));
+            }
+        }
+        return string.Join(", ", layers);
     }
 }

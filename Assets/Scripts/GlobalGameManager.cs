@@ -7,6 +7,13 @@ public class GlobalGameManager : NetworkBehaviour
 {
     [Header("Configuración")]
     [SerializeField] private GameObject tableroPrefab;
+    // Nueva referencia para el botón Ready
+    [Header("UI Elements")]
+    [SerializeField] private GameObject readyButtonPrefab;
+    [SerializeField] private Vector3 buttonOffset = new Vector3(-50, 0.5f, -25f); // Ajusta según necesites
+
+    // Diccionario para rastrear la asociación entre tableros y botones
+    private Dictionary<ulong, GameObject> clientReadyButtons = new Dictionary<ulong, GameObject>();
 
     // Lista para rastrear los tableros generados
     private List<GameObject> spawnedBoards = new List<GameObject>();
@@ -88,6 +95,8 @@ public class GlobalGameManager : NetworkBehaviour
         {
             Debug.Log($"Spawneando tablero para cliente {clientId}");
             tableNetObj.SpawnWithOwnership(clientId);
+            //  Instanciar ReadyButton por separado
+            SpawnReadyButtonForTablero(clientId, tablero);
         }
         else
         {
@@ -101,6 +110,47 @@ public class GlobalGameManager : NetworkBehaviour
     }
 
 
+    private void SpawnReadyButtonForTablero(ulong clientId, GameObject tablero)
+    {
+        if (readyButtonPrefab == null)
+        {
+            Debug.LogError("No se ha asignado el prefab del ReadyButton en GlobalGameManager");
+            return;
+        }
+
+        // Calcular posición relativa al tablero
+        Vector3 buttonPosition = tablero.transform.position + tablero.transform.TransformDirection(buttonOffset);
+
+        // Instanciar el botón
+        GameObject readyButton = Instantiate(readyButtonPrefab, buttonPosition, tablero.transform.rotation);
+        readyButton.name = $"ReadyButton_Client_{clientId}";
+
+        // Opcionalmente, guardar referencia al tablero asociado
+        ReadyButton readyComponent = readyButton.GetComponent<ReadyButton>();
+        if (readyComponent != null)
+        {
+            readyComponent.AssociatedTableroId = clientId;
+        }
+
+        // Spawnear con el mismo ownership que el tablero
+        NetworkObject buttonNetObj = readyButton.GetComponent<NetworkObject>();
+        if (buttonNetObj != null)
+        {
+            buttonNetObj.SpawnWithOwnership(clientId);
+
+            // Guardar en el diccionario para seguimiento
+            clientReadyButtons[clientId] = readyButton;
+
+            Debug.Log($"ReadyButton spawneado para cliente {clientId}");
+        }
+        else
+        {
+            Debug.LogError("¡El ReadyButton no tiene NetworkObject! No puede ser spawneado.");
+            Destroy(readyButton);
+        }
+    }
+
+
     public void ResetInitialization()
     {
         // Método para forzar reinicialización (útil para cambios de escena)
@@ -111,6 +161,7 @@ public class GlobalGameManager : NetworkBehaviour
         spawnedBoards.Clear();
     }
 
+    // Modificar método existente para limpiar recursos
     public override void OnDestroy()
     {
         base.OnDestroy();
@@ -120,5 +171,8 @@ public class GlobalGameManager : NetworkBehaviour
         {
             NetworkManager.Singleton.OnClientConnectedCallback -= OnClientConnected;
         }
+
+        // Limpiar diccionario de botones
+        clientReadyButtons.Clear();
     }
 }

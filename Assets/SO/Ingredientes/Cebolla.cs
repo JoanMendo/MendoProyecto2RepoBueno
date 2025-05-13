@@ -9,36 +9,44 @@ public class Cebolla : IngredientesSO
 {
     protected override void AplicarEfectoEspecifico(GameObject nodoOrigen, List<GameObject> nodosAfectados)
     {
-        // Buscar componente Economia en el cliente dueño
-        Economia economiaJugador = FindObjectOfType<Economia>();
-        if (economiaJugador == null)
+        Debug.Log("Ejecutando efecto de Cebolla");
+
+        // Obtener la referencia al NodeMap desde el nodo
+        Node nodoComponente = nodoOrigen.GetComponent<Node>();
+        if (nodoComponente == null || nodoComponente.nodeMap == null)
         {
-            Debug.LogError("No se encontró componente Economia para el efecto Cebolla");
+            Debug.LogError("No se pudo obtener NodeMap desde el nodo origen");
             return;
         }
 
-        // Verificar si todos los nodos vecinos están vacíos
-        bool limpio = true;
-        foreach (var vecino in nodosAfectados)
-        {
-            Node nodoVecino = vecino.GetComponent<Node>();
-            if (nodoVecino != null && nodoVecino.hasIngredient.Value)
-            {
-                limpio = false;
-                break;
-            }
-        }
+        // Obtener ID del propietario del tablero
+        ulong clientId = nodoComponente.nodeMap.ownerClientId;
 
-        // Aplicar efecto de multiplicador
-        if (limpio)
+        // Usar el IngredientManager para crear el gestor de efecto
+        if (IngredientManager.Instance != null)
         {
-            economiaJugador.SetMultiplicador(2);
-            Debug.Log("Efecto cebolla activado: Ganancias duplicadas");
+            GameObject gestorObj = IngredientManager.Instance.CrearGestorEfecto("cebolla");
+            if (gestorObj != null)
+            {
+                IEffectManager gestor = gestorObj.GetComponent<IEffectManager>();
+                if (gestor != null)
+                {
+                    // Configurar el gestor con este ingrediente
+                    gestor.ConfigurarConIngrediente(this);
+
+                    // Iniciar el efecto usando la interfaz estandarizada
+                    gestor.IniciarEfecto(nodoOrigen, nodosAfectados);
+                }
+                else
+                {
+                    Debug.LogError("El gestor de efectos de cebolla no implementa IEffectManager");
+                    Destroy(gestorObj);
+                }
+            }
         }
         else
         {
-            economiaJugador.SetMultiplicador(1);
-            Debug.Log("Efecto cebolla desactivado: Ganancias normales");
+            Debug.LogError("No se encontró IngredientManager para el efecto Cebolla");
         }
     }
 }

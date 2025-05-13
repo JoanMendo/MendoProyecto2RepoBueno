@@ -12,16 +12,41 @@ public class Maiz : IngredientesSO
 
     protected override void AplicarEfectoEspecifico(GameObject nodoOrigen, List<GameObject> nodosAfectados)
     {
-        // Buscar componente Economia en el cliente dueño
-        Economia economiaJugador = FindObjectOfType<Economia>();
-        if (economiaJugador == null)
+        Debug.Log("Ejecutando efecto de Maíz");
+
+        // Obtener la referencia al NodeMap desde el nodo
+        Node nodoComponente = nodoOrigen.GetComponent<Node>();
+        if (nodoComponente == null || nodoComponente.nodeMap == null)
         {
-            Debug.LogError("No se encontró componente Economia para el efecto Maiz");
+            Debug.LogError("No se pudo obtener NodeMap desde el nodo origen");
             return;
         }
 
-        // Generar dinero
-        economiaJugador.more_money(cantidadDinero);
-        Debug.Log($"Maiz generó {cantidadDinero} monedas");
+        // Usar el IngredientManager para crear el gestor de efecto
+        if (IngredientManager.Instance != null)
+        {
+            GameObject gestorObj = IngredientManager.Instance.CrearGestorEfecto("maiz");
+            if (gestorObj != null)
+            {
+                IEffectManager gestor = gestorObj.GetComponent<IEffectManager>();
+                if (gestor != null)
+                {
+                    // Configurar el gestor con este ingrediente
+                    gestor.ConfigurarConIngrediente(this);
+
+                    // Iniciar el efecto usando la interfaz estandarizada
+                    gestor.IniciarEfecto(nodoOrigen, nodosAfectados);
+                }
+                else
+                {
+                    Debug.LogError("El gestor de efectos de maíz no implementa IEffectManager");
+                    Destroy(gestorObj);
+                }
+            }
+        }
+        else
+        {
+            Debug.LogError("No se encontró IngredientManager para el efecto Maíz");
+        }
     }
 }

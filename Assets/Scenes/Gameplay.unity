@@ -151,6 +151,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   ShowTopMostFoldoutHeaderGroup: 1
   tableroPrefab: {fileID: 3732377246760197467, guid: 15de2770c96ce394fb026b9a28523377, type: 3}
+  readyButtonPrefab: {fileID: 8952550261731275462, guid: 34213989fa00ab844b6aef93ed3a0af5, type: 3}
+  buttonOffset: {x: -10, y: 0.5, z: -15}
 --- !u!114 &299525005
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -201,6 +203,7 @@ GameObject:
   m_Component:
   - component: {fileID: 697972869}
   - component: {fileID: 697972870}
+  - component: {fileID: 697972873}
   - component: {fileID: 697972871}
   - component: {fileID: 697972872}
   m_Layer: 0
@@ -238,6 +241,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   currentIngredient: {fileID: 0}
+  currentIngredientData: {fileID: 0}
   actualmoney: 0
 --- !u!114 &697972871
 MonoBehaviour:
@@ -252,13 +256,14 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   ShowTopMostFoldoutHeaderGroup: 1
-  maxTurnos: 10
-  duracionFaseSegundos: 30
-  victoria: {fileID: 0}
-  turnoActual:
-    m_InternalValue: 1
-  faseActual:
+  tiempoMaximoPorFase: 60
+  usarTiempoMaximo: 1
+  faseTurnoActual:
     m_InternalValue: 0
+  tiempoRestanteFase:
+    m_InternalValue: 60
+  numeroTurnoActual:
+    m_InternalValue: 1
 --- !u!114 &697972872
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -273,6 +278,31 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   nodeMap: {fileID: 0}
   recetaMinimos: []
+--- !u!114 &697972873
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 697972868}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d5a57f767e5e46a458fc5d3c628d0cbb, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  GlobalObjectIdHash: 3371748923
+  InScenePlacedSourceGlobalObjectIdHash: 0
+  DeferredDespawnTick: 0
+  Ownership: 1
+  AlwaysReplicateAsRoot: 0
+  SynchronizeTransform: 1
+  ActiveSceneSynchronization: 0
+  SceneMigrationSynchronization: 1
+  SpawnWithObservers: 1
+  DontDestroyWithOwner: 0
+  AutoObjectParentSync: 1
+  SyncOwnerTransformWhenParented: 1
+  AllowOwnerToParent: 0
 --- !u!1001 &837159363
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -390,6 +420,58 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &1505036256
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1505036257}
+  - component: {fileID: 1505036258}
+  m_Layer: 0
+  m_Name: PasivasGameManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1505036257
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1505036256}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -8.016646, y: -0.23530662, z: -11.676662}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1505036258
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1505036256}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0ceefc23de1a3a64eae8be886bdc409c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  polloManagerPrefab: {fileID: 4502058815511117696, guid: 97d8bebec7bd35847b2eec8c56e66c3a, type: 3}
+  tomateManagerPrefab: {fileID: 1341907694089286019, guid: fc9e949f1d159f149a4601c1140da2d8, type: 3}
+  olivaNManagerPrefab: {fileID: 6700403591580791318, guid: ea0ebdaafa827a04bb8d9ccf2b662bb8, type: 3}
+  olivaVManagerPrefab: {fileID: 8331947333693035496, guid: 1bad8d39c8fe0dc469a405114e357e9b, type: 3}
+  maizManagerPrefab: {fileID: 556374516828029225, guid: 87a36730e3790fd4fa66598cf0207ac5, type: 3}
+  cebollaManagerPrefab: {fileID: 4018319463574029134, guid: 1e4a352fe37259e46aa3a8cd23d0337d, type: 3}
+  quesoManagerPrefab: {fileID: 3376638658954312293, guid: 1141f8a425cf9cd45a3606d0b8ec65c4, type: 3}
+  terneraManagerPrefab: {fileID: 2688735226315360695, guid: 686731c5abfa07147aab65ea9fca89c1, type: 3}
 --- !u!1 &1510286323
 GameObject:
   m_ObjectHideFlags: 0
@@ -658,3 +740,4 @@ SceneRoots:
   - {fileID: 1983953451}
   - {fileID: 299525006}
   - {fileID: 697972869}
+  - {fileID: 1505036257}

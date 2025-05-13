@@ -17,28 +17,31 @@ public class Ternera : IngredientesSO
         // Verificar si hay al menos un nodo vecino
         if (nodosAfectados.Count == 0) return;
 
-        // Tomar el primer nodo de la lista
-        GameObject primerVecino = nodosAfectados[0];
-        Node nodoVecino = primerVecino.GetComponent<Node>();
-
-        if (nodoVecino != null && nodoVecino.hasIngredient.Value && nodoVecino.currentIngredient != null)
+        // Usar el IngredientManager para crear el gestor de efecto
+        if (IngredientManager.Instance != null)
         {
-            // Obtener el ingrediente del nodo vecino
-            ResourcesSO recursoVecino = nodoVecino.currentIngredient.GetComponent<ResourcesSO>();
-            if (recursoVecino != null)
+            GameObject gestorObj = IngredientManager.Instance.CrearGestorEfecto("ternera");
+            if (gestorObj != null)
             {
-                // Aplicar modificadores
-                ModificadorRecurso modificador = nodoVecino.currentIngredient.GetComponent<ModificadorRecurso>();
-                if (modificador == null)
+                IEffectManager gestor = gestorObj.GetComponent<IEffectManager>();
+                if (gestor != null)
                 {
-                    modificador = nodoVecino.currentIngredient.AddComponent<ModificadorRecurso>();
+                    // Configurar el gestor con este ingrediente
+                    gestor.ConfigurarConIngrediente(this);
+
+                    // Iniciar el efecto usando la interfaz estandarizada
+                    gestor.IniciarEfecto(nodoOrigen, nodosAfectados);
                 }
-
-                modificador.AumentarVida(aumentoVida);
-                modificador.HacerInmovil();
-
-                Debug.Log($"Ternera aumentó la vida de {recursoVecino.Name} en {aumentoVida} y lo hizo inmóvil");
+                else
+                {
+                    Debug.LogError("El gestor de efectos de ternera no implementa IEffectManager");
+                    Destroy(gestorObj);
+                }
             }
+        }
+        else
+        {
+            Debug.LogError("No se encontró IngredientManager para el efecto Ternera");
         }
     }
 }

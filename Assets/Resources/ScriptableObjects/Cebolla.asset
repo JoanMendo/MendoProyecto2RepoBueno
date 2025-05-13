@@ -1,0 +1,27 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5324f2c24a66cd442afc9a2821bc8866, type: 3}
+  m_Name: Cebolla
+  m_EditorClassIdentifier: 
+  resourceID: 1
+  Name: Cebolla
+  Description: hce llorar
+  Price: 1
+  Limit: -1
+  range: 2
+  nivel: 1
+  vida: 1
+  forma: cuadrado
+  esmovible: 0
+  niveles_ignorar: 
+  Sprite: {fileID: 0}
+  prefab3D: {fileID: 3664100224609117633, guid: a73eca55382651c449497eca9a2be0be, type: 3}

@@ -30,7 +30,7 @@ public class InputManager : MonoBehaviour, InputSystem_Actions.IUIActions
 
     public void OnNavigate(InputAction.CallbackContext context) //WASD para moverte entre lso botones de una interfaz
     {
-        throw new System.NotImplementedException();
+       // throw new System.NotImplementedException();
     }
 
     public void OnSubmit(InputAction.CallbackContext context) //Darle a un boton para seleccionar
@@ -55,11 +55,20 @@ public class InputManager : MonoBehaviour, InputSystem_Actions.IUIActions
 
     public void OnClick(InputAction.CallbackContext context) //Con que boton se hace click
     {
-        if (context.performed && !context.canceled) //Si el click es realizado
+        if (context.performed)
         {
-            Debug.Log("Click realizado en la posición: " + MousePosition); //Imprime la posicion del click
-            OnClicked?.Invoke(); //Invoca el evento OnClicked si no es nulo
+            Vector2 position = Mouse.current.position.ReadValue();
+            Debug.Log($"[InputManager] Click detectado en: {position}. Suscriptores: {(OnClicked != null ? "Sí" : "No")}");
 
+            // Si hay suscriptores, invoca el evento
+            if (OnClicked != null)
+            {
+                OnClicked?.Invoke();
+            }
+            else
+            {
+                Debug.LogError("¡PROBLEMA! No hay suscriptores al evento OnClicked");
+            }
         }
 
 
@@ -68,18 +77,18 @@ public class InputManager : MonoBehaviour, InputSystem_Actions.IUIActions
     public void OnRightClick(InputAction.CallbackContext context) //Con que boton se hace click derecho
 
     {
-        throw new System.NotImplementedException();
+        //throw new System.NotImplementedException();
     }
 
     public void OnMiddleClick(InputAction.CallbackContext context) //Con que boton se hace click medio
 
     {
-        throw new System.NotImplementedException();
+        //throw new System.NotImplementedException();
     }
 
     public void OnScrollWheel(InputAction.CallbackContext context) //Al deslizar con la rueda del mouse
     {
-        throw new System.NotImplementedException();
+        //throw new System.NotImplementedException();
     }
 
 
