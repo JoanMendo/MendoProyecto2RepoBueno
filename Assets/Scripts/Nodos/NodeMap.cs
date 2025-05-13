@@ -16,6 +16,7 @@ public class NodeMap : NetworkBehaviour
     [SerializeField] private bool showDebugInfo = false;
     [SerializeField] private bool showVisualDebugHelpers = false;
 
+   
     // Lista de nodos generados
     public List<GameObject> nodesList = new List<GameObject>();
 
@@ -24,6 +25,19 @@ public class NodeMap : NetworkBehaviour
 
     // ID del cliente propietario (asignado por GlobalGameManager)
     [HideInInspector] public ulong ownerClientId;
+
+    private Economia _economia;
+    public Economia economia
+    {
+        get
+        {
+            if (_economia == null)
+            {
+                _economia = GetComponent<Economia>();
+            }
+            return _economia;
+        }
+    }
 
     // Flag para evitar generar nodos múltiples veces
     private bool nodesGenerated = false;
@@ -225,7 +239,7 @@ public class NodeMap : NetworkBehaviour
         debugObjects.Add(sphere);
     }
 
-    // CORREGIDO: Método para obtener un nodo en una posición específica
+    //  Método para obtener un nodo en una posición específica
     public GameObject GetNodeAtPosition(Vector2Int position)
     {
         foreach (GameObject node in nodesList)
@@ -247,7 +261,7 @@ public class NodeMap : NetworkBehaviour
         return null;
     }
 
-    // CORREGIDO: Método para obtener nodos adyacentes con manejo adecuado de tipos
+    //  Método para obtener nodos adyacentes con manejo adecuado de tipos
     public List<GameObject> GetAdjacentNodes(GameObject centerNode, int radius = 1)
     {
         List<GameObject> adjacentNodes = new List<GameObject>();

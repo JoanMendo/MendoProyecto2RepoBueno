@@ -126,7 +126,7 @@ public class Node : NetworkBehaviour, IInteractuable
 
         // Verificar dinero
         float precio = datosPrefab.Price;
-        float dineroActual = LocalGameManager.Instance.actualmoney;
+        float dineroActual = nodeMap.economia.money.Value;
         Debug.Log($"[Node {position}] Verificando dinero: Precio={precio}, Dinero actual={dineroActual}");
 
         if (dineroActual < precio)
@@ -174,7 +174,7 @@ public class Node : NetworkBehaviour, IInteractuable
         SetNodeIngredient(prefabIngrediente);
 
         // Notificar al cliente (para efectos visuales, sonido, etc.)
-        IngredienteColocadoClientRpc(precio);
+        IngredienteColocadoClientRpc();
 
         // Reducir el dinero del jugador
         Economia economia = FindFirstObjectByType<Economia>();
@@ -218,17 +218,13 @@ public class Node : NetworkBehaviour, IInteractuable
     /// Notifica a los clientes que se ha colocado un ingrediente
     /// ‡‡‡‡</summary>_PLACEHOLDER‡‡_PLACEHOLDER‡‡
     [ClientRpc]
-    private void IngredienteColocadoClientRpc(float precio)
+    private void IngredienteColocadoClientRpc()
     {
         // Efectos visuales o sonidos cuando se coloca un ingrediente
         if (mostrarDebug) Debug.Log($"Ingrediente colocado con éxito en posición {position}");
 
         // Actualizar LocalGameManager si es necesario
-        if (IsOwner && LocalGameManager.Instance != null)
-        {
-            // Actualizar dinero local si lo manejas así
-            LocalGameManager.Instance.actualmoney -= precio;
-        }
+        
 
         // Aquí podrías reproducir un sonido o efecto visual
         // AudioSource.PlayClipAtPoint(sonidoColocacion, transform.position);

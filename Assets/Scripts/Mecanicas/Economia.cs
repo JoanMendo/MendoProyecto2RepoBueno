@@ -6,6 +6,17 @@ public class Economia : NetworkBehaviour
     public NetworkVariable<float> money = new NetworkVariable<float>(1000f);
     private NetworkVariable<int> multiplicador = new NetworkVariable<int>(1);
 
+    public NetworkVariable<ulong> clientId = new NetworkVariable<ulong>();
+
+    public override void OnNetworkSpawn()
+    {
+        base.OnNetworkSpawn();
+        if (IsServer)
+        {
+            clientId.Value = OwnerClientId;
+        }
+    }
+
     [ServerRpc(RequireOwnership = false)]
     public void AddMoneyServerRpc(float incremento)
     {
@@ -34,6 +45,7 @@ public class Economia : NetworkBehaviour
 
     public void less_money(float cantidad)
     {
+        Debug.Log($"[ECONOMIA] Restando {cantidad} dinero. Antes: {money.Value}, Después: {money.Value - cantidad}");
         SubtractMoneyServerRpc(cantidad);
     }
 

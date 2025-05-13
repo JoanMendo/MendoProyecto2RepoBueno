@@ -88,7 +88,12 @@ public class GlobalGameManager : NetworkBehaviour
         {
             Debug.LogWarning("El tablero no tiene componente NodeMap!");
         }
-
+        Economia economiaJugador = tablero.GetComponent<Economia>();
+        if (economiaJugador == null)
+        {
+            economiaJugador = tablero.AddComponent<Economia>();
+        }
+        economiaJugador.clientId.Value = clientId;
         // Spawnear el tablero
         NetworkObject tableNetObj = tablero.GetComponent<NetworkObject>();
         if (tableNetObj != null)

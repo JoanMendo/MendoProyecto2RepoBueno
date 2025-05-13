@@ -85,6 +85,7 @@ public class CebollaEffectManager : NetworkBehaviour, IEffectManager
         }
     }
 
+
     [ServerRpc(RequireOwnership = false)]
     private void ComprobarVecinosVaciosServerRpc()
     {
@@ -106,26 +107,22 @@ public class CebollaEffectManager : NetworkBehaviour, IEffectManager
         bool cambioEstado = todosVacios != multiplicadorActivo.Value;
         multiplicadorActivo.Value = todosVacios;
 
-        // Localizar la economía del jugador y aplicar multiplicador si corresponde
+        // MODIFICAR: Acceder directamente a la economía a través del nodo origen
         if (cambioEstado)
         {
-            Economia economiaJugador = null;
-            foreach (var economia in FindObjectsOfType<Economia>())
+            // Obtener la economía del tablero directamente desde el nodo
+            Node nodoComponente = nodoOrigen.GetComponent<Node>();
+            if (nodoComponente != null && nodoComponente.nodeMap != null && nodoComponente.nodeMap.economia != null)
             {
-                // Aquí deberías tener alguna forma de identificar a qué cliente pertenece cada economía
-                economiaJugador = economia;
-                break;
-            }
+                Economia economiaJugador = nodoComponente.nodeMap.economia;
 
-            if (economiaJugador != null)
-            {
                 if (multiplicadorActivo.Value)
                 {
                     economiaJugador.SetMultiplicador(MULTIPLICADOR_CEBOLLA);
                 }
                 else
                 {
-                    economiaJugador.SetMultiplicador(1);
+                    economiaJugador.SetMultiplicador(2);
                 }
 
                 // Notificar a todos los clientes
@@ -177,15 +174,11 @@ public class CebollaEffectManager : NetworkBehaviour, IEffectManager
         // Si el multiplicador estaba activo, desactivarlo
         if (multiplicadorActivo.Value)
         {
-            Economia economiaJugador = null;
-            foreach (var economia in FindObjectsOfType<Economia>())
+            // MODIFICAR: Acceder directamente a la economía
+            Node nodoComponente = nodoOrigen.GetComponent<Node>();
+            if (nodoComponente != null && nodoComponente.nodeMap != null && nodoComponente.nodeMap.economia != null)
             {
-                economiaJugador = economia;
-                break;
-            }
-
-            if (economiaJugador != null)
-            {
+                Economia economiaJugador = nodoComponente.nodeMap.economia;
                 economiaJugador.SetMultiplicador(1);
             }
         }

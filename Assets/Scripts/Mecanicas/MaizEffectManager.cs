@@ -84,30 +84,24 @@ public class MaizEffectManager : NetworkBehaviour, IEffectManager
         efectoAplicado = true;
         efectoActivo.Value = true;
 
-        // Localizar la economía del jugador
-        Economia economiaJugador = null;
-
-        // Buscar la economía asociada al cliente específico
-        // Esto se podría mejorar con un sistema central que registre las economías por clienteId
-        foreach (var economia in FindObjectsOfType<Economia>())
+        Node nodoComponente = nodoOrigen.GetComponent<Node>();
+        if (nodoComponente != null && nodoComponente.nodeMap != null)
         {
-            // Aquí deberías tener alguna forma de identificar a qué cliente pertenece cada economía
-            // Por ejemplo, economía.ClientId == clientId
-            economiaJugador = economia;
-            break;
-        }
+            // Acceder directamente a la economía del tablero
+            Economia economiaJugador = nodoComponente.nodeMap.economia;
 
-        if (economiaJugador != null)
-        {
-            // Aplicar efecto económico
-            economiaJugador.more_money(cantidad);
+            if (economiaJugador != null)
+            {
+                // Aplicar efecto económico
+                economiaJugador.more_money(cantidad);
 
-            // Notificar a todos los clientes
-            AplicarEfectoClientRpc(clientId, cantidad);
-        }
-        else
-        {
-            Debug.LogError($"No se encontró componente Economía para el cliente {clientId}");
+                // Notificar a todos los clientes
+                AplicarEfectoClientRpc(clientId, cantidad);
+            }
+            else
+            {
+                Debug.LogError($"No se encontró componente Economía para el cliente {clientId}");
+            }
         }
     }
 
