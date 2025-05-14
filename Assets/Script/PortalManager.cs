@@ -11,12 +11,16 @@ public class PortalManager : MonoBehaviour
     public ParticleSystem ExitPortal;
 
     private bool puedeDesaparecer = true;
-    private bool puedoAparecer = true; 
+    private bool puedoAparecer = true;
+
+    public AudioClip sonido;
+    private AudioSource audioSource;
 
     public void Start ()
     {
         EnterPortal.Stop ();
         ExitPortal.Stop ();
+        audioSource = GetComponent<AudioSource> ();
     }
 
     public void AparecerDesdePortal ()
@@ -24,13 +28,20 @@ public class PortalManager : MonoBehaviour
         if (!puedoAparecer || items.activeSelf) return;
 
         puedoAparecer = false;
-        StartCoroutine (ReactivarAparicionItems (6f));  
+        StartCoroutine (ReactivarAparicionItems (6f));
         ExitPortal.Play ();
-        StartCoroutine (DetenerPortalDespuesDeTiempo3 (ExitPortal, 2f)); // Cambiado a 2f para que aparezca más rápido
-        
+        StartCoroutine (DetenerPortalDespuesDeTiempo3 (ExitPortal, 2f));
+
         EnterPortal.Play ();
-        StartCoroutine (AparecerConRetrasoItems ()); // Cambiado a 2f para que aparezca más rápido
-        StartCoroutine (DetenerPortalDespuesDeTiempo (EnterPortal, 4f)); 
+        StartCoroutine (AparecerConRetrasoItems ());
+        StartCoroutine (DetenerPortalDespuesDeTiempo (EnterPortal, 4f));
+
+        if (sonido != null && audioSource != null)
+        {
+            audioSource.clip = sonido;
+            audioSource.loop = true;
+            audioSource.Play ();
+        }
     }
 
     private IEnumerator DetenerPortalDespuesDeTiempo3 (ParticleSystem portal, float segundos)
@@ -38,6 +49,11 @@ public class PortalManager : MonoBehaviour
         yield return new WaitForSeconds (segundos);
         portal.Stop ();
         vegetable.SetActive (false);
+
+        if (audioSource != null && audioSource.isPlaying)
+        {
+            audioSource.Stop ();
+        }
     }
 
     private IEnumerator AparecerConRetrasoItems ()
@@ -62,8 +78,6 @@ public class PortalManager : MonoBehaviour
         puedoAparecer = true;
     }
 
- 
-
     public void DesaparecerEnPortal ()
     {
         if (!puedeDesaparecer || vegetable.activeSelf) return;
@@ -72,10 +86,17 @@ public class PortalManager : MonoBehaviour
         StartCoroutine (ReactivarDesaparicion (6f));
         ExitPortal.Play ();
         StartCoroutine (DetenerPortalDespuesDeTiempo2 (ExitPortal, 2f));
-        
+
         EnterPortal.Play ();
         StartCoroutine (AparecerConRetraso (2f));
         StartCoroutine (DetenerPortalDespuesDeTiempo (EnterPortal, 4f));
+
+        if (sonido != null && audioSource != null)
+        {
+            audioSource.clip = sonido;
+            audioSource.loop = true;
+            audioSource.Play ();
+        }
     }
 
     private IEnumerator DetenerPortalDespuesDeTiempo2 (ParticleSystem portal, float segundos)
@@ -83,14 +104,16 @@ public class PortalManager : MonoBehaviour
         yield return new WaitForSeconds (segundos);
         portal.Stop ();
         items.SetActive (false);
+
+        if (audioSource != null && audioSource.isPlaying)
+        {
+            audioSource.Stop ();
+        }
     }
-
-
-
 
     private IEnumerator AparecerConRetraso (float segundos)
     {
-        yield return new WaitForSeconds (segundos); 
+        yield return new WaitForSeconds (segundos);
 
         vegetable.SetActive (true);
         vegetable.transform.position = new Vector3 (-16.46345f, -22.1f, -23.1f);
@@ -107,13 +130,18 @@ public class PortalManager : MonoBehaviour
         }
 
         rb.useGravity = false;
-        rb.linearVelocity = Vector3.zero; // Corrección: era "linearVelocity" que no existe
+        rb.linearVelocity = Vector3.zero;
     }
 
     private IEnumerator DetenerPortalDespuesDeTiempo (ParticleSystem portal, float segundos)
     {
         yield return new WaitForSeconds (segundos);
         portal.Stop ();
+
+        if (audioSource != null && audioSource.isPlaying)
+        {
+            audioSource.Stop ();
+        }
     }
 
     private IEnumerator ReactivarDesaparicion (float delay)

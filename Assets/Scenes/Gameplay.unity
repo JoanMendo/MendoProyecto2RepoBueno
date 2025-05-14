@@ -450,6 +450,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   ShowTopMostFoldoutHeaderGroup: 1
+  rutaEfectos: ScriptableObjects/Efectos
+  rutaManagersPrefabs: Prefabs/EfectosManager
+  mostrarDebug: 0
   efectosPrecargados:
   - {fileID: 11400000, guid: 9a7853f9397c6424f8e6222a724352c0, type: 2}
   - {fileID: 11400000, guid: 126283b7919ae4240aeb2b4f00859428, type: 2}
@@ -755,7 +758,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!114 &1572273866
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -937,3 +940,5 @@ SceneRoots:
   - {fileID: 1505036257}
   - {fileID: 1373632651}
   - {fileID: 1319343573}
+  - {fileID: 1572273867}
+  - {fileID: 1768288859}
