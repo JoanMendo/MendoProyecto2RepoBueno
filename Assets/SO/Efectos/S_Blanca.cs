@@ -1,194 +1,93 @@
-using UnityEngine;
+Ôªøusing UnityEngine;
 using Unity.Netcode;
+using System.Collections;
 using System.Collections.Generic;
 
-/// áá<summary>_PLACEHOLDERáá
-/// Efecto que crea una conexiÛn entre dos nodos por un n˙mero de turnos
-/// áá</summary>_PLACEHOLDERáá
+/// ‚Ä°‚Ä°<summary>_PLACEHOLDER‚Ä°‚Ä°
+/// Efecto que crea una conexi√≥n entre dos nodos por un n√∫mero de turnos
+/// ‚Ä°‚Ä°</summary>_PLACEHOLDER‚Ä°‚Ä°
 [CreateAssetMenu(fileName = "S_Blanca", menuName = "CookingGame/Resources/Efectos/S_Blanca")]
 public class S_Blanca : Efectos
 {
-    [Tooltip("Prefab visual para la conexiÛn entre nodos")]
+    [Tooltip("Prefab visual para la conexi√≥n entre nodos")]
     public GameObject prefabConexion;
 
-    protected override void AplicarEfectoEspecifico(GameObject nodoOrigen, List<GameObject> nodosAfectados)
+    public override void Activar(GameObject nodoObjetivo, NodeMap mapa)
     {
-        // Este efecto no se activa autom·ticamente, solo a travÈs de CrearConexion
-        Debug.Log("S_Blanca requiere selecciÛn de nodos especÌficos para activarse");
+        // Este efecto se activa de forma especial a trav√©s de CrearConexion
+        Debug.Log("S_Blanca requiere selecci√≥n de nodos espec√≠ficos para activarse");
     }
 
-    /// áá<summary>_PLACEHOLDERáá
-    /// Crea una conexiÛn de salsa entre dos nodos
-    /// áá</summary>_PLACEHOLDERáá
     public void CrearConexion(GameObject nodoOrigen, GameObject nodoDestino)
     {
-        if (nodoOrigen == null || nodoDestino == null) return;
+        // ‚ö†Ô∏è VALIDACI√ìN PARA PREVENIR NULL REFERENCE
+        if (nodoOrigen == null || nodoDestino == null)
+        {
+            Debug.LogError($"S_Blanca.CrearConexion: Nodo origen o destino es null");
+            return;
+        }
 
-        // Crear gestor para la conexiÛn
-        GameObject gestorObj = new GameObject("EfectoBlancoManager");
-        EfectoBlancoManager gestor = gestorObj.AddComponent<EfectoBlancoManager>();
+        // Obtener el EfectosManager
+        EfectosManager manager = EfectosManager.Instance;
+        if (manager == null)
+        {
+            Debug.LogError("No se encontr√≥ el EfectosManager en la escena");
+            return;
+        }
+
+        // Verificar si hay un prefab para el manager
+        GameObject gestorObj = null;
+
+        // Intentar obtener el prefab del diccionario
+        // Usar el m√©todo p√∫blico de EfectosManager para crear un manager
+        gestorObj = manager.CrearEfectoManager("Blanco");
+
+        // Si no se pudo crear, implementar l√≥gica de respaldo
+        if (gestorObj == null)
+        {
+            // Crear uno nuevo como fallback
+            gestorObj = new GameObject("EfectoBlancoManager");
+            gestorObj.AddComponent<EfectoBlancoManager>();
+
+            // A√±adir NetworkObject si es necesario
+            if (!gestorObj.TryGetComponent<NetworkObject>(out _))
+            {
+                gestorObj.AddComponent<NetworkObject>();
+            }
+        }
+
+
+        // Configurar el gestor
+        EfectoBlancoManager gestorBlanco = gestorObj.GetComponent<EfectoBlancoManager>();
+
+        // ‚ö†Ô∏è VALIDAR QUE NO SEA NULL
+        if (gestorBlanco == null)
+        {
+            Debug.LogError("No se pudo obtener el componente EfectoBlancoManager");
+            Destroy(gestorObj);
+            return;
+        }
+
+        // Configurar el NetworkObject si existe
+        NetworkObject netObj = gestorObj.GetComponent<NetworkObject>();
+        if (netObj != null && !netObj.IsSpawned)
+        {
+            netObj.Spawn();
+        }
 
         // Iniciar el efecto
-        gestor.IniciarEfectoConexion(nodoOrigen, nodoDestino, this, 3);
+        gestorBlanco.IniciarEfectoConexion(nodoOrigen, nodoDestino, this, duracion);
+
+        // Registrar el efecto con su gestor propio
+        manager.RegistrarEfectoConGestorPropio(this, nodoOrigen, nodoDestino, gestorObj);
+    }
+
+    public override List<GameObject> CalcularNodosAfectados(GameObject nodoObjetivo, NodeMap mapa)
+    {
+        // Para S_Blanca, necesitamos un segundo nodo, pero eso se maneja en CrearConexion
+        // Este m√©todo se usa solo para la interfaz
+        return new List<GameObject>() { nodoObjetivo };
     }
 }
 
-/// áá<summary>_PLACEHOLDERáá
-/// Componente que gestiona la conexiÛn visual y lÛgica entre dos nodos
-/// áá</summary>_PLACEHOLDERáá
-public class EfectoBlancoManager : NetworkBehaviour
-{
-    // Referencias a los nodos conectados
-    private GameObject nodoOrigen;
-    private GameObject nodoDestino;
-    private S_Blanca efectoSalsa;
 
-    // Objeto visual de la conexiÛn
-    private GameObject conexionVisual;
-
-    // Estado de la conexiÛn
-    public NetworkVariable<int> turnosRestantes = new NetworkVariable<int>(0);
-    public NetworkVariable<bool> activa = new NetworkVariable<bool>(false);
-
-    /// áá<summary>_PLACEHOLDERáá
-    /// Inicia el efecto de conexiÛn entre dos nodos
-    /// áá</summary>_PLACEHOLDERáá
-    public void IniciarEfectoConexion(GameObject origen, GameObject destino, S_Blanca efecto, int duracion)
-    {
-        nodoOrigen = origen;
-        nodoDestino = destino;
-        efectoSalsa = efecto;
-
-        // Spawnear objeto de red para permitir RPC
-        GetComponent<NetworkObject>().Spawn();
-
-        // Solicitar inicio de efecto al servidor
-        CrearConexionServerRpc(
-            origen.GetComponent<NetworkObject>().NetworkObjectId,
-            destino.GetComponent<NetworkObject>().NetworkObjectId,
-            duracion
-        );
-    }
-
-    [ServerRpc(RequireOwnership = false)]
-    private void CrearConexionServerRpc(ulong origenId, ulong destinoId, int duracion)
-    {
-        // Obtener referencias por NetworkObjectId
-        NetworkObject origenNetObj = NetworkManager.Singleton.SpawnManager.SpawnedObjects[origenId];
-        NetworkObject destinoNetObj = NetworkManager.Singleton.SpawnManager.SpawnedObjects[destinoId];
-
-        if (origenNetObj == null || destinoNetObj == null) return;
-
-        // Inicializar estado
-        turnosRestantes.Value = duracion;
-        activa.Value = true;
-
-        // Notificar a clientes para crear visuales
-        CrearConexionVisualClientRpc(origenId, destinoId);
-    }
-
-    [ClientRpc]
-    private void CrearConexionVisualClientRpc(ulong origenId, ulong destinoId)
-    {
-        // Obtener referencias por NetworkObjectId
-        NetworkObject origenNetObj = NetworkManager.Singleton.SpawnManager.SpawnedObjects[origenId];
-        NetworkObject destinoNetObj = NetworkManager.Singleton.SpawnManager.SpawnedObjects[destinoId];
-
-        if (origenNetObj == null || destinoNetObj == null) return;
-
-        nodoOrigen = origenNetObj.gameObject;
-        nodoDestino = destinoNetObj.gameObject;
-
-        // Crear visual de conexiÛn
-        if (efectoSalsa.prefabConexion != null)
-        {
-            conexionVisual = Instantiate(efectoSalsa.prefabConexion);
-
-            // Posicionar entre los dos nodos
-            conexionVisual.transform.position = Vector3.Lerp(
-                nodoOrigen.transform.position,
-                nodoDestino.transform.position,
-                0.5f
-            );
-
-            // Rotar para apuntar del origen al destino
-            Vector3 direccion = nodoDestino.transform.position - nodoOrigen.transform.position;
-            conexionVisual.transform.rotation = Quaternion.LookRotation(direccion);
-
-            // Escalar seg˙n distancia
-            float distancia = Vector3.Distance(nodoOrigen.transform.position, nodoDestino.transform.position);
-            conexionVisual.transform.localScale = new Vector3(1, 1, distancia);
-        }
-    }
-
-    /// áá<summary>_PLACEHOLDERáá
-    /// Procesa el efecto en cada turno
-    /// áá</summary>_PLACEHOLDERáá
-    public void ProcesarTurno()
-    {
-        if (!IsServer) return;
-
-        // Reducir duraciÛn
-        turnosRestantes.Value--;
-
-        // Aplicar efecto especÌfico (por ejemplo, transferir ingredientes)
-        if (turnosRestantes.Value >= 0)
-        {
-            AplicarEfectoConexion();
-        }
-
-        // Si terminÛ, destruir
-        if (turnosRestantes.Value <= 0)
-        {
-            FinalizarConexion();
-        }
-    }
-
-    /// áá<summary>_PLACEHOLDERáá
-    /// Aplica el efecto especÌfico de la conexiÛn
-    /// áá</summary>_PLACEHOLDERáá
-    private void AplicarEfectoConexion()
-    {
-        if (!IsServer) return;
-
-        // Implementar efecto especÌfico seg˙n el tipo de conexiÛn
-        // Por ejemplo, compartir propiedades entre ingredientes
-    }
-
-    /// áá<summary>_PLACEHOLDERáá
-    /// Finaliza la conexiÛn y limpia recursos
-    /// áá</summary>_PLACEHOLDERáá
-    private void FinalizarConexion()
-    {
-        if (!IsServer) return;
-
-        activa.Value = false;
-
-        // Notificar a clientes para limpiar visuales
-        LimpiarConexionClientRpc();
-
-        // Destruir este objeto despuÈs de un breve retraso
-        StartCoroutine(DestruirDespuesDeRetraso());
-    }
-
-    [ClientRpc]
-    private void LimpiarConexionClientRpc()
-    {
-        // Destruir visuales
-        if (conexionVisual != null)
-        {
-            Destroy(conexionVisual);
-        }
-    }
-
-    private System.Collections.IEnumerator DestruirDespuesDeRetraso()
-    {
-        yield return new WaitForSeconds(0.2f);
-
-        if (IsSpawned)
-        {
-            GetComponent<NetworkObject>().Despawn();
-        }
-        Destroy(gameObject);
-    }
-}

@@ -11,7 +11,11 @@ public class Node : NetworkBehaviour, IInteractuable
     public NetworkVariable<bool> hasIngredient = new NetworkVariable<bool>(false);
     public NetworkVariable<bool> hasUtensilio = new NetworkVariable<bool>(false);
 
-   
+    // En la clase Node, añadir estos campos
+    [Header("Indicadores Visuales")]
+    [SerializeField] private GameObject selectionIndicator;
+    [SerializeField] private GameObject programmedIndicator;
+    [SerializeField] private GameObject executingIndicator;
 
     [Header("Referencias")]
     public GameObject currentIngredient;
@@ -94,6 +98,21 @@ public class Node : NetworkBehaviour, IInteractuable
             Debug.Log($"[Node {position}] No tiene autoridad para interactuar");
             return;
         }
+        // NUEVO: Verificar si estamos en modo efecto
+        if (LocalGameManager.Instance.currentEfecto != null)
+        {
+            // Modo efecto - procesar selección
+            LocalGameManager.Instance.ProcesarSeleccionNodoParaEfecto(gameObject);
+            return;
+        }
+
+        // Verificar si estamos en modo utensilio
+        if (LocalGameManager.Instance.currentUtensilio != null)
+        {
+            // Modo utensilio - procesar selección
+            LocalGameManager.Instance.ProcesarSeleccionNodoParaUtensilio(gameObject);
+            return;
+        }
 
         // Verificar si ya hay ingrediente
         Debug.Log($"[Node {position}] Verificando estado: hasIngredient={hasIngredient.Value}");
@@ -114,7 +133,6 @@ public class Node : NetworkBehaviour, IInteractuable
         // Verificar ingrediente seleccionado
         GameObject ingredienteSeleccionado = LocalGameManager.Instance.currentIngredient;
         ResourcesSO datosPrefab = LocalGameManager.Instance.currentIngredientData;
-
         Debug.Log($"[Node {position}] Ingrediente actual: {(ingredienteSeleccionado != null ? ingredienteSeleccionado.name : "NINGUNO")}");
         Debug.Log($"[Node {position}] Datos ingrediente: {(datosPrefab != null ? datosPrefab.Name : "NINGUNO")}");
 
@@ -199,7 +217,7 @@ public class Node : NetworkBehaviour, IInteractuable
             return prefab;
         }
 
-        
+
 
         // OPCIÓN 3: Usar LocalGameManager como último recurso
         if (LocalGameManager.Instance != null &&
@@ -224,7 +242,7 @@ public class Node : NetworkBehaviour, IInteractuable
         if (mostrarDebug) Debug.Log($"Ingrediente colocado con éxito en posición {position}");
 
         // Actualizar LocalGameManager si es necesario
-        
+
 
         // Aquí podrías reproducir un sonido o efecto visual
         // AudioSource.PlayClipAtPoint(sonidoColocacion, transform.position);
@@ -360,6 +378,9 @@ public class Node : NetworkBehaviour, IInteractuable
         // Actualizar estado visual si es necesario
     }
 
+
+
+
     /// ‡‡‡‡<summary>_PLACEHOLDER‡‡_PLACEHOLDER‡‡
     /// Modifica el rango de efectos en este nodo
     /// ‡‡‡‡</summary>_PLACEHOLDER‡‡_PLACEHOLDER‡‡
@@ -424,5 +445,154 @@ public class Node : NetworkBehaviour, IInteractuable
         if (recurso == null) return false;
 
         return recurso.esmovible && esMovible.Value;
+    }
+
+    // Añadir estos métodos
+    public void MarcarProgramado(Utensilio utensilio)
+    {
+        if (programmedIndicator != null)
+        {
+            programmedIndicator.SetActive(true);
+
+            // Opcionalmente, puedes usar un icono que represente el utensilio
+            // Image iconoUtensilio = programmedIndicator.GetComponentInChildren<Image>();
+            // if (iconoUtensilio != null && utensilio.Sprite != null)
+            // {
+            //    iconoUtensilio.sprite = utensilio.Sprite;
+            // }
+        }
+
+        // Desactivar otros indicadores
+        if (selectionIndicator != null)
+        {
+            selectionIndicator.SetActive(false);
+        }
+        if (executingIndicator != null)
+        {
+            executingIndicator.SetActive(false);
+        }
+    }
+
+    public void MarcarEjecutando()
+    {
+        if (executingIndicator != null)
+        {
+            executingIndicator.SetActive(true);
+        }
+        if (programmedIndicator != null)
+        {
+            programmedIndicator.SetActive(false);
+        }
+        if (selectionIndicator != null)
+        {
+            selectionIndicator.SetActive(false);
+        }
+    }
+
+    public void DesmarcarProgramado()
+    {
+        if (programmedIndicator != null)
+        {
+            programmedIndicator.SetActive(false);
+        }
+        if (executingIndicator != null)
+        {
+            executingIndicator.SetActive(false);
+        }
+    }
+    // Métodos para marcado visual de selección
+    public void MarcarSeleccion()
+    {
+        if (selectionIndicator != null)
+        {
+            selectionIndicator.SetActive(true);
+        }
+    }
+
+    public void DesmarcarSeleccion()
+    {
+        if (selectionIndicator != null)
+        {
+            selectionIndicator.SetActive(false);
+        }
+    }
+
+    // Añadir estos métodos para manejar efectos
+    public void AplicarEfecto(Efectos efecto)
+    {
+        if (!IsServer || efecto == null) return;
+
+        // Crear efectos visuales temporales
+        if (efecto.prefab3D != null)
+        {
+            GameObject efectoVisual = Instantiate(efecto.prefab3D, transform.position, Quaternion.identity);
+            // Configurar escala, rotación, etc. según necesidad
+
+            // Destruir después de tiempo
+            Destroy(efectoVisual, 2.0f);
+        }
+
+        // Si tiene nodeMap, pasar a activar el efecto
+        if (nodeMap != null)
+        {
+            efecto.ActivarEfecto(gameObject, nodeMap);
+        }
+
+        // Notificar a clientes
+        MostrarEfectoVisualClientRpc(efecto.Name);
+    }
+
+    public void MarcarProgramado(Efectos efecto)
+    {
+        if (programmedIndicator != null)
+        {
+            programmedIndicator.SetActive(true);
+
+            // Opcionalmente cambiar color según el tipo de efecto
+            Renderer indicatorRenderer = programmedIndicator.GetComponent<Renderer>();
+            if (indicatorRenderer != null)
+            {
+                if (efecto is S_Blanca)
+                    indicatorRenderer.material.color = Color.white;
+                else if (efecto is S_Especial)
+                    indicatorRenderer.material.color = Color.green;
+                else if (efecto is S_Picante)
+                    indicatorRenderer.material.color = Color.red;
+            }
+        }
+
+        // Desactivar otros indicadores
+        if (selectionIndicator != null)
+        {
+            selectionIndicator.SetActive(false);
+        }
+        if (executingIndicator != null)
+        {
+            executingIndicator.SetActive(false);
+        }
+    }
+
+    [ClientRpc]
+    private void MostrarEfectoVisualClientRpc(string nombreEfecto)
+    {
+        // Esta función se llama en todos los clientes
+        // Podemos mostrar efectos visuales adicionales
+
+        // Buscar el efecto por nombre
+        Efectos efecto = null;
+        if (EfectosManager.Instance != null)
+        {
+            efecto = EfectosManager.Instance.GetEfectoPorNombre(nombreEfecto);
+        }
+
+        // Solo mostrar en clientes (el servidor ya lo hizo)
+        if (!IsServer && efecto != null && efecto.prefab3D != null)
+        {
+            GameObject efectoVisual = Instantiate(efecto.prefab3D, transform.position, Quaternion.identity);
+            // Configurar según necesidad
+
+            // Destruir después de tiempo
+            Destroy(efectoVisual, 2.0f);
+        }
     }
 }

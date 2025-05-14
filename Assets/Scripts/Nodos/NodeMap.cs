@@ -373,7 +373,7 @@ public class NodeMap : NetworkBehaviour
         }
 
         // Calcular nodos afectados
-        List<GameObject> nodosAfectados = ingredienteSO.CalcularNodosAfectados(nodo.gameObject, this);
+        List<GameObject> nodosAfectados = ingredienteSO.CalcularNodosAfectadosConModificadores(nodo.gameObject, this);
 
         // Crear gestor de efecto
         GameObject gestorObj = IngredientManager.Instance.CrearGestorEfecto(tipoIngrediente.ToLower());

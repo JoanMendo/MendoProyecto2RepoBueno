@@ -142,6 +142,33 @@ public abstract class ResourcesSO : ScriptableObject
 
         return nodosAfectados;
     }
+    // Añadir esto al ResourcesSO (clase base) - modificación no invasiva
+    public virtual List<GameObject> CalcularNodosAfectadosConModificadores(GameObject nodoOrigen, NodeMap nodeMap)
+    {
+        // Buscar modificador de rango en el ingrediente del nodo origen
+        int rangoEfectivo = range;
+
+        if (nodoOrigen != null)
+        {
+            Node nodo = nodoOrigen.GetComponent<Node>();
+            if (nodo != null && nodo.currentIngredient != null)
+            {
+                ModificadorRecurso mod = nodo.currentIngredient.GetComponent<ModificadorRecurso>();
+                if (mod != null)
+                {
+                    rangoEfectivo = mod.GetRangoActual();
+                    Debug.Log($"[{Name}] Usando rango modificado: {rangoEfectivo} (original: {range})");
+                }
+            }
+        }
+
+        // Crear copia del objeto para no modificar el original
+        ResourcesSO tempResource = Instantiate(this);
+        tempResource.range = rangoEfectivo;
+
+        // Usar la copia para calcular los nodos afectados
+        return tempResource.CalcularNodosAfectados(nodoOrigen, nodeMap);
+    }
 
     /// ‡‡<summary>_PLACEHOLDER‡‡
     /// Método para ordenar los nodos afectados según el tipo de efecto

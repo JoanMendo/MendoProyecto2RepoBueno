@@ -9,20 +9,36 @@ public class CursorManager : MonoBehaviour
     private Vector3 mousePosition;
     public GameObject currentResource; // Referencia al objeto de recurso actual
 
+    [Header("Apariencia del Cursor")]
+    private MeshRenderer meshRenderer;
+    private Material originalMaterial;
+    public Material defaultCursorMaterial; // Material por defecto del cursor
+
     private void Awake()
     {
         if (mainCamera == null)
         {
             mainCamera = Camera.main; // Asigna la cámara principal si no se ha asignado
         }
+
         inputManager = FindFirstObjectByType<InputManager>();
         if (inputManager == null)
         {
             Debug.LogError("No se encontró el InputManager en la escena.");
         }
 
+        // Obtener el MeshRenderer
+        meshRenderer = GetComponent<MeshRenderer>();
+        if (meshRenderer == null)
+        {
+            Debug.LogWarning("CursorManager no tiene componente MeshRenderer");
+        }
+        else
+        {
+            // Guardar el material original
+            originalMaterial = meshRenderer.material;
+        }
     }
-
 
     public void OnEnable()
     {
@@ -45,6 +61,7 @@ public class CursorManager : MonoBehaviour
             Debug.LogError("[CursorManager] ¡ERROR! No se pudo encontrar InputManager");
         }
     }
+
     public void OnDisable()
     {
         Debug.Log("[CursorManager] OnDisable - Desuscribiendo de eventos");
@@ -65,9 +82,52 @@ public class CursorManager : MonoBehaviour
         transform.position = worldMousePosition;
     }
 
+    /// ‡‡<summary>_PLACEHOLDER‡‡
+    /// Restaura el material original del cursor
+    /// ‡‡</summary>_PLACEHOLDER‡‡
+    public void RestoreOriginalMaterial()
+    {
+        if (meshRenderer == null) return;
+
+        if (originalMaterial != null)
+        {
+            meshRenderer.material = originalMaterial;
+        }
+        else if (defaultCursorMaterial != null)
+        {
+            meshRenderer.material = defaultCursorMaterial;
+        }
+    }
+
+    /// ‡‡<summary>_PLACEHOLDER‡‡
+    /// Cambia el material del cursor
+    /// ‡‡</summary>_PLACEHOLDER‡‡
+    public void SetCursorMaterial(Material newMaterial)
+    {
+        if (meshRenderer == null || newMaterial == null) return;
+
+        meshRenderer.material = newMaterial;
+    }
+
+    /// ‡‡<summary>_PLACEHOLDER‡‡
+    /// Guarda el material actual como original
+    /// ‡‡</summary>_PLACEHOLDER‡‡
+    public void SaveCurrentAsOriginal()
+    {
+        if (meshRenderer == null) return;
+
+        originalMaterial = meshRenderer.material;
+    }
+
     private void Interact()
     {
         Debug.Log("[CursorManager] Método Interact llamado");
+        // NUEVA VERIFICACIÓN: Comprobar si estamos en fase de ejecución de acciones
+        if (TurnManager.Instance != null && TurnManager.Instance.GetFaseActual() == FaseTurno.EjecucionAcciones)
+        {
+            Debug.Log("[CursorManager] Ignorando interacción durante fase de ejecución de acciones");
+            return; // No procesamos interacciones durante esta fase
+        }
 
         if (currentResource == null)
         {
@@ -131,10 +191,9 @@ public class CursorManager : MonoBehaviour
         }
         else
         {
-            Debug.LogError("Raycast con capa específica no golpeó nada. Es probable que los nodos no estén en la capa correcta.");
+            Debug.Log("Raycast con capa específica no golpeó nada. Es probable que los nodos no estén en la capa correcta.");
         }
     }
-
 
     // Método auxiliar para mostrar nombres de capas
     private string LayerMaskToString(LayerMask mask)

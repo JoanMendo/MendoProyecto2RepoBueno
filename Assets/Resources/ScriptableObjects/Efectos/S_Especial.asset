@@ -1,0 +1,30 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: df846626d0a417f40a8135163e88a910, type: 3}
+  m_Name: S_Especial
+  m_EditorClassIdentifier: 
+  resourceID: 1
+  Name: S_Especial
+  Description: Empuja verticalmente
+  Price: 4
+  Limit: -1
+  range: 1
+  nivel: 1
+  vida: 1
+  forma: cuadrado
+  esmovible: 0
+  niveles_ignorar: 
+  Sprite: {fileID: 0}
+  prefab3D: {fileID: 8588061054967466627, guid: 8b222146fa41a324789772470d2d6e3d, type: 3}
+  duracion: 1
+  tipoEfecto: 
+  activacionInmediata: 0

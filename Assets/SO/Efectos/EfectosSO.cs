@@ -3,10 +3,6 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-/// ‡‡<summary>_PLACEHOLDER‡‡
-/// Representa un efecto especial que puede activarse en el tablero.
-/// Los efectos pueden ser temporales o permanentes.
-/// ‡‡</summary>_PLACEHOLDER‡‡
 [CreateAssetMenu(fileName = "New Efecto", menuName = "CookingGame/Resources/Efecto")]
 public class Efectos : ResourcesSO
 {
@@ -20,9 +16,39 @@ public class Efectos : ResourcesSO
     [Tooltip("Si el efecto se activa inmediatamente o al final del turno")]
     public bool activacionInmediata = true;
 
-    /// ‡‡<summary>_PLACEHOLDER‡‡
-    /// Activa el efecto específico
-    /// ‡‡</summary>_PLACEHOLDER‡‡
+    // Implementación de la interfaz IEfecto
+    public string Nombre => Name;
+    public int Duracion => duracion;
+    public bool EsActivacionInmediata => activacionInmediata;
+
+    public virtual void Activar(GameObject nodoObjetivo, NodeMap mapa)
+    {
+        // Implementación existente
+        ActivarEfecto(nodoObjetivo, mapa);
+    }
+
+    public virtual void ProcesarTurno(GameObject nodoObjetivo, NodeMap mapa)
+    {
+        // Por defecto, llamamos al método existente
+        EjecutarTurno(nodoObjetivo);
+    }
+
+    public virtual void Finalizar(GameObject nodoObjetivo, NodeMap mapa)
+    {
+        // Por defecto, llamamos al método existente
+        FinalizarEfecto(nodoObjetivo);
+    }
+
+    public virtual List<GameObject> CalcularNodosAfectados(GameObject nodoObjetivo, NodeMap mapa)
+    {
+        // Implementación simple que solo devuelve el nodo objetivo
+        if (nodoObjetivo == null)
+            return new List<GameObject>();
+
+        return new List<GameObject>() { nodoObjetivo };
+    }
+
+    // Métodos existentes que ahora redirigen a la interfaz
     public override void ActivarEfecto(GameObject nodoOrigen, NodeMap nodeMap)
     {
         // Calcular nodos afectados
@@ -35,26 +61,17 @@ public class Efectos : ResourcesSO
         Debug.Log($"Efecto {Name} activado desde {nodoOrigen.name} afectando a {nodosAfectados.Count} nodos por {duracion} turnos");
     }
 
-    /// ‡‡<summary>_PLACEHOLDER‡‡
-    /// Método para que las subclases implementen efectos específicos
-    /// ‡‡</summary>_PLACEHOLDER‡‡
     protected virtual void AplicarEfectoEspecifico(GameObject nodoOrigen, List<GameObject> nodosAfectados)
     {
         // Implementación base vacía - clases hijas sobreescriben según necesidad
     }
 
-    /// ‡‡<summary>_PLACEHOLDER‡‡
-    /// Método que se ejecuta cada turno mientras el efecto esté activo
-    /// ‡‡</summary>_PLACEHOLDER‡‡
     public virtual void EjecutarTurno(GameObject nodoAfectado)
     {
         // Por defecto no hace nada - clases derivadas implementan efectos por turno
         Debug.Log($"Efecto {Name} en ejecución sobre {nodoAfectado.name}");
     }
 
-    /// ‡‡<summary>_PLACEHOLDER‡‡
-    /// Método que se ejecuta cuando el efecto termina (por duración o cancelación)
-    /// ‡‡</summary>_PLACEHOLDER‡‡
     public virtual void FinalizarEfecto(GameObject nodoAfectado)
     {
         Debug.Log($"Efecto {Name} finalizado en {nodoAfectado.name}");

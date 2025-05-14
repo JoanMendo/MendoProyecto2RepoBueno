@@ -1,62 +1,140 @@
-using UnityEngine;
+using System;
+using System.Collections;
+using System.Collections.Generic;
 using Unity.Netcode;
+using UnityEngine;
 
-/// ‡‡<summary>_PLACEHOLDER‡‡
-/// Componente que gestiona modificaciones dinámicas a recursos (rango, movilidad, etc).
-/// ‡‡</summary>_PLACEHOLDER‡‡
 public class ModificadorRecurso : NetworkBehaviour
 {
     private ResourcesSO recursoBase;
+
+    // Cola de operaciones pendientes para cuando el objeto esté listo
+    private List<Action> operacionesPendientes = new List<Action>();
+    private bool esNetworkObjectListo = false;
 
     // Variables de red para sincronizar modificaciones
     public NetworkVariable<int> modificacionRango = new NetworkVariable<int>(0);
     public NetworkVariable<float> modificacionVida = new NetworkVariable<float>(0f);
     public NetworkVariable<bool> esMovible = new NetworkVariable<bool>(true);
 
+    public void SetRecursoBase(ResourcesSO recurso)
+    {
+        recursoBase = recurso;
+        Debug.Log($"[RANGO] Asignado recurso {(recurso != null ? recurso.Name : "null")} a {gameObject.name}");
+
+        if (recursoBase != null)
+        {
+            Debug.Log($"[RANGO] Verificación: Rango base = {recursoBase.range}, total = {GetRangoActual()}");
+        }
+    }
+
     private void Awake()
     {
-        recursoBase = GetComponent<ResourcesSO>();
-
         // Suscribirse a cambios en las variables de red
         modificacionRango.OnValueChanged += OnRangoModificado;
         modificacionVida.OnValueChanged += OnVidaModificada;
         esMovible.OnValueChanged += OnMovilidadModificada;
     }
 
+    public override void OnNetworkSpawn()
+    {
+        base.OnNetworkSpawn();
+
+        // Ahora el NetworkObject está listo para usar NetworkVariables
+        esNetworkObjectListo = true;
+        Debug.Log($"[NETWORK] NetworkObject inicializado para {gameObject.name}");
+
+        // Ejecutar operaciones pendientes
+        if (operacionesPendientes.Count > 0)
+        {
+            Debug.Log($"[NETWORK] Ejecutando {operacionesPendientes.Count} operaciones pendientes");
+            foreach (var operacion in operacionesPendientes)
+            {
+                operacion.Invoke();
+            }
+            operacionesPendientes.Clear();
+        }
+    }
+
+    // Método para encolar operaciones si el objeto no está listo
+    private void EjecutarCuandoListo(Action operacion)
+    {
+        if (esNetworkObjectListo)
+        {
+            operacion.Invoke();
+        }
+        else
+        {
+            Debug.Log($"[NETWORK] Encolando operación para {gameObject.name}");
+            operacionesPendientes.Add(operacion);
+        }
+    }
+
+    // Método para modificar directamente (sin RPC)
     public void AumentarRango(int cantidad)
     {
         if (!IsServer) return;
+
         modificacionRango.Value += cantidad;
+        Debug.Log($"[RANGO] Aumento aplicado a {gameObject.name}: {modificacionRango.Value} (+{cantidad})");
     }
 
     public void DisminuirRango(int cantidad)
     {
         if (!IsServer) return;
+
         modificacionRango.Value -= cantidad;
+        Debug.Log($"[RANGO] Disminución aplicada a {gameObject.name}: {modificacionRango.Value} (-{cantidad})");
     }
 
-    public void AumentarVida(float cantidad)
+    // Métodos para modificar valores con seguridad (conservamos estos para uso normal)
+    [ServerRpc(RequireOwnership = false)]
+    public void AumentarRangoServerRpc(int cantidad)
     {
-        if (!IsServer) return;
-        modificacionVida.Value += cantidad;
+        EjecutarCuandoListo(() => {
+            modificacionRango.Value += cantidad;
+            Debug.Log($"[RANGO] Aumento aplicado a {gameObject.name}: {modificacionRango.Value} (+{cantidad})");
+        });
     }
 
-    public void DisminuirVida(float cantidad)
+    [ServerRpc(RequireOwnership = false)]
+    public void DisminuirRangoServerRpc(int cantidad)
     {
-        if (!IsServer) return;
-        modificacionVida.Value -= cantidad;
+        EjecutarCuandoListo(() => {
+            modificacionRango.Value -= cantidad;
+        });
     }
 
-    public void HacerInmovil()
+    [ServerRpc(RequireOwnership = false)]
+    public void AumentarVidaServerRpc(float cantidad)
     {
-        if (!IsServer) return;
-        esMovible.Value = false;
+        EjecutarCuandoListo(() => {
+            modificacionVida.Value += cantidad;
+        });
     }
 
-    public void HacerMovil()
+    [ServerRpc(RequireOwnership = false)]
+    public void DisminuirVidaServerRpc(float cantidad)
     {
-        if (!IsServer) return;
-        esMovible.Value = true;
+        EjecutarCuandoListo(() => {
+            modificacionVida.Value -= cantidad;
+        });
+    }
+
+    [ServerRpc(RequireOwnership = false)]
+    public void HacerInmovilServerRpc()
+    {
+        EjecutarCuandoListo(() => {
+            esMovible.Value = false;
+        });
+    }
+
+    [ServerRpc(RequireOwnership = false)]
+    public void HacerMovilServerRpc()
+    {
+        EjecutarCuandoListo(() => {
+            esMovible.Value = true;
+        });
     }
 
     // Eventos de respuesta a cambios
@@ -84,7 +162,7 @@ public class ModificadorRecurso : NetworkBehaviour
         }
     }
 
-    // Métodos para consultar valores actuales
+    // Métodos para consultar valores actuales (sin cambios)
     public int GetRangoActual()
     {
         if (recursoBase == null) return 0;

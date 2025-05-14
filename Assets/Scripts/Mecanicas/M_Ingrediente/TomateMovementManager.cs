@@ -242,11 +242,11 @@ public class TomateMovementManager : NetworkBehaviour, IEffectManager
             return;
         }
 
-        // Obtener el prefab del tomate para recrearlo en el destino
-        ResourcesSO tomateSO = tomateObj.GetComponent<ResourcesSO>();
-        if (tomateSO == null || tomateSO.prefab3D == null)
+        // la referencia al ScriptableObject
+        componente comp = tomateObj.GetComponent<componente>();
+        if (comp == null || comp.data == null || comp.data.prefab3D == null)
         {
-            Debug.LogError("TomateMovementManager: No se pudo obtener ResourcesSO o prefab3D del tomate");
+            Debug.LogError("TomateMovementManager: No se pudo obtener el componente o el prefab3D del tomate");
             return;
         }
 
@@ -259,8 +259,8 @@ public class TomateMovementManager : NetworkBehaviour, IEffectManager
         nodoOrigen.hasIngredient.Value = false;
         nodoOrigen.currentIngredient = null;
 
-        // Colocar el tomate en el destino
-        nodoDestino.SetNodeIngredient(tomateSO.prefab3D);
+        // Colocar el tomate en el destino usando el prefab del ScriptableObject
+        nodoDestino.SetNodeIngredient(comp.data.prefab3D);
 
         // Notificar a todos los clientes
         MoverTomateClientRpc(origenId, destinoId);

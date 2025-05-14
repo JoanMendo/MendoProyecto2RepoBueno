@@ -84,7 +84,7 @@ public class IngredientManager : MonoBehaviour
     public IngredientesSO GetIngredienteByName(string nombre)
     {
         nombre = nombre.ToLower();
-
+        Debug.Log($"Buscando IngredientesSO para: {nombre}");
         if (ingredientesSOCache.ContainsKey(nombre))
         {
             return ingredientesSOCache[nombre];

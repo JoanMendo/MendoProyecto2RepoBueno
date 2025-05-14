@@ -1,7 +1,7 @@
-using UnityEngine;
-using Unity.Netcode;
 using System.Collections;
 using System.Collections.Generic;
+using Unity.Netcode;
+using UnityEngine;
 
 public class OlivaVEffectManager : NetworkBehaviour, IEffectManager
 {
@@ -40,9 +40,9 @@ public class OlivaVEffectManager : NetworkBehaviour, IEffectManager
         IniciarEfectoOlivaV(nodoOrigen, nodosAfectados, reduccionRango);
     }
 
-    /// ‡‡<summary>_PLACEHOLDER‡‡
+    /// ‡‡‡‡<summary>_PLACEHOLDER‡‡_PLACEHOLDER‡‡
     /// Inicia el efecto de reducción de rango en los ingredientes adyacentes
-    /// ‡‡</summary>_PLACEHOLDER‡‡
+    /// ‡‡‡‡</summary>_PLACEHOLDER‡‡_PLACEHOLDER‡‡
     public void IniciarEfectoOlivaV(GameObject nodoOrigen, List<GameObject> nodosAfectados, int reduccionRango)
     {
         // Convertirse en objeto de red para poder usar RPC
@@ -96,20 +96,78 @@ public class OlivaVEffectManager : NetworkBehaviour, IEffectManager
 
         foreach (ulong id in objetivosIds)
         {
+            // Preparar clientes primero
+            PrepararObjetivoClientRpc(id);
+
             // Localizar objeto objetivo
             if (!NetworkManager.Singleton.SpawnManager.SpawnedObjects.TryGetValue(id, out NetworkObject objetivoNetObj))
                 continue;
 
-            // Aplicar modificador
-            ModificadorRecurso mod = objetivoNetObj.gameObject.GetComponent<ModificadorRecurso>();
-            if (mod == null)
-                mod = objetivoNetObj.gameObject.AddComponent<ModificadorRecurso>();
+            // Usar coroutine para dar tiempo a la sincronización
+            StartCoroutine(AplicarEfectoConDelay(objetivoNetObj.gameObject, reduccion, id));
+        }
+    }
 
-            mod.DisminuirRango(reduccion);
+    private IEnumerator AplicarEfectoConDelay(GameObject objetivo, int reduccion, ulong id)
+    {
+        yield return new WaitForSeconds(0.1f);
+
+        // Aplicar modificador
+        ModificadorRecurso mod = objetivo.GetComponent<ModificadorRecurso>();
+        if (mod == null)
+        {
+            mod = objetivo.AddComponent<ModificadorRecurso>();
+
+            // Asignar recurso base
+            componente ingrediente = objetivo.GetComponent<componente>();
+            if (ingrediente != null && ingrediente.data != null)
+            {
+                mod.SetRecursoBase(ingrediente.data);
+            }
         }
 
-        // Notificar a todos los clientes
-        AplicarEfectoClientRpc(objetivosIds, reduccion);
+        // Modificar directamente la variable de red en lugar de usar ServerRpc
+        int rangoAntes = mod.GetRangoActual();
+        mod.modificacionRango.Value -= reduccion;
+        int rangoDespues = mod.GetRangoActual();
+
+        Debug.Log($"Oliva_V: Reducido rango de {objetivo.name}. Rango: {rangoAntes} -> {rangoDespues} (-{reduccion})");
+
+        // Notificar al cliente individualmente
+        AplicarEfectoASingleObjetivoClientRpc(id, reduccion);
+    }
+
+    [ClientRpc]
+    private void PrepararObjetivoClientRpc(ulong id)
+    {
+        // Localizar objeto objetivo en el cliente
+        if (!NetworkManager.Singleton.SpawnManager.SpawnedObjects.TryGetValue(id, out NetworkObject objetivoNetObj))
+            return;
+
+        // Verificamos si ya existe el ModificadorRecurso en el cliente
+        ModificadorRecurso mod = objetivoNetObj.gameObject.GetComponent<ModificadorRecurso>();
+        if (mod == null)
+        {
+            mod = objetivoNetObj.gameObject.AddComponent<ModificadorRecurso>();
+
+            // Obtener recurso del componente
+            componente comp = objetivoNetObj.gameObject.GetComponent<componente>();
+            if (comp != null && comp.data != null)
+            {
+                mod.SetRecursoBase(comp.data);
+            }
+        }
+
+        Debug.Log($"[CLIENTE] Preparado objeto {objetivoNetObj.name} para recibir efecto Oliva_V");
+    }
+
+    [ClientRpc]
+    private void AplicarEfectoASingleObjetivoClientRpc(ulong id, int reduccion)
+    {
+        if (!NetworkManager.Singleton.SpawnManager.SpawnedObjects.TryGetValue(id, out NetworkObject objetivoNetObj))
+            return;
+
+        Debug.Log($"[CLIENTE] Efecto Oliva_V aplicado a {objetivoNetObj.name}, reducción: {reduccion}");
     }
 
     [ClientRpc]

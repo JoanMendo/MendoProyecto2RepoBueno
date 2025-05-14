@@ -1,7 +1,7 @@
-using UnityEngine;
-using Unity.Netcode;
 using System.Collections;
 using System.Collections.Generic;
+using Unity.Netcode;
+using UnityEngine;
 
 public class TerneraEffectManager : NetworkBehaviour, IEffectManager
 {
@@ -95,6 +95,9 @@ public class TerneraEffectManager : NetworkBehaviour, IEffectManager
     [ServerRpc(RequireOwnership = false)]
     private void AplicarEfectoServerRpc(ulong objetivoId, float cantidad)
     {
+        // Preparar cliente primero
+        PrepararObjetivoClientRpc(objetivoId);
+
         // Localizar objeto objetivo
         if (!NetworkManager.Singleton.SpawnManager.SpawnedObjects.TryGetValue(objetivoId, out NetworkObject objetivoNetObj))
         {
@@ -102,17 +105,76 @@ public class TerneraEffectManager : NetworkBehaviour, IEffectManager
             return;
         }
 
-        // Aplicar modificador
-        ModificadorRecurso mod = objetivoNetObj.gameObject.GetComponent<ModificadorRecurso>();
-        if (mod == null)
-            mod = objetivoNetObj.gameObject.AddComponent<ModificadorRecurso>();
+        // Usar coroutine para dar tiempo a la sincronización
+        StartCoroutine(AplicarEfectoConDelay(objetivoNetObj.gameObject, cantidad, objetivoId));
+    }
 
-        mod.AumentarVida(cantidad);
-        mod.HacerInmovil();
+    private IEnumerator AplicarEfectoConDelay(GameObject objetivo, float cantidad, ulong id)
+    {
+        yield return new WaitForSeconds(0.1f);
+
+        // Aplicar modificador
+        ModificadorRecurso mod = objetivo.GetComponent<ModificadorRecurso>();
+        if (mod == null)
+        {
+            mod = objetivo.AddComponent<ModificadorRecurso>();
+
+            // Asignar recurso base
+            componente ingrediente = objetivo.GetComponent<componente>();
+            if (ingrediente != null && ingrediente.data != null)
+            {
+                mod.SetRecursoBase(ingrediente.data);
+            }
+        }
+
+        // Modificar directamente las variables de red
+        float vidaAntes = mod.GetVidaActual();
+        mod.modificacionVida.Value += cantidad;
+        float vidaDespues = mod.GetVidaActual();
+
+        bool movibleAntes = mod.EsMovible();
+        mod.esMovible.Value = false;
+
+        Debug.Log($"Ternera: Aplicado efecto a {objetivo.name}. " +
+                  $"Vida: {vidaAntes} -> {vidaDespues} (+{cantidad}), " +
+                  $"Movible: {movibleAntes} -> {mod.EsMovible()}");
 
         // Actualizar estado y notificar a clientes
         efectoAplicado.Value = true;
-        AplicarEfectoClientRpc(objetivoId);
+        AplicarEfectoASingleObjetivoClientRpc(id);
+    }
+
+    [ClientRpc]
+    private void PrepararObjetivoClientRpc(ulong id)
+    {
+        // Localizar objeto objetivo en el cliente
+        if (!NetworkManager.Singleton.SpawnManager.SpawnedObjects.TryGetValue(id, out NetworkObject objetivoNetObj))
+            return;
+
+        // Verificamos si ya existe el ModificadorRecurso en el cliente
+        ModificadorRecurso mod = objetivoNetObj.gameObject.GetComponent<ModificadorRecurso>();
+        if (mod == null)
+        {
+            mod = objetivoNetObj.gameObject.AddComponent<ModificadorRecurso>();
+
+            // Obtener recurso del componente
+            componente comp = objetivoNetObj.gameObject.GetComponent<componente>();
+            if (comp != null && comp.data != null)
+            {
+                mod.SetRecursoBase(comp.data);
+            }
+        }
+
+        Debug.Log($"[CLIENTE] Preparado objeto {objetivoNetObj.name} para recibir efecto Ternera");
+    }
+
+    [ClientRpc]
+    private void AplicarEfectoASingleObjetivoClientRpc(ulong id)
+    {
+        if (!NetworkManager.Singleton.SpawnManager.SpawnedObjects.TryGetValue(id, out NetworkObject objetivoNetObj))
+            return;
+
+        Debug.Log($"[CLIENTE] Efecto Ternera aplicado a {objetivoNetObj.name}");
     }
 
     [ClientRpc]

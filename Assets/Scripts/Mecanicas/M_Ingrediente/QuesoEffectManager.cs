@@ -1,7 +1,7 @@
-using UnityEngine;
-using Unity.Netcode;
 using System.Collections;
 using System.Collections.Generic;
+using Unity.Netcode;
+using UnityEngine;
 
 public class QuesoEffectManager : NetworkBehaviour, IEffectManager
 {
@@ -27,9 +27,9 @@ public class QuesoEffectManager : NetworkBehaviour, IEffectManager
         IniciarEfectoQueso(nodoOrigen, nodosAfectados);
     }
 
-    /// ‡‡<summary>_PLACEHOLDER‡‡
+    /// ‡‡‡‡<summary>_PLACEHOLDER‡‡_PLACEHOLDER‡‡
     /// Inicia el efecto de inmovilización en todos los ingredientes adyacentes
-    /// ‡‡</summary>_PLACEHOLDER‡‡
+    /// ‡‡‡‡</summary>_PLACEHOLDER‡‡_PLACEHOLDER‡‡
     public void IniciarEfectoQueso(GameObject nodoOrigen, List<GameObject> nodosAfectados)
     {
         // Convertirse en objeto de red para poder usar RPC
@@ -80,20 +80,77 @@ public class QuesoEffectManager : NetworkBehaviour, IEffectManager
 
         foreach (ulong id in objetivosIds)
         {
+            // Preparar clientes primero
+            PrepararObjetivoClientRpc(id);
+
             // Localizar objeto objetivo
             if (!NetworkManager.Singleton.SpawnManager.SpawnedObjects.TryGetValue(id, out NetworkObject objetivoNetObj))
                 continue;
 
-            // Aplicar modificador
-            ModificadorRecurso mod = objetivoNetObj.gameObject.GetComponent<ModificadorRecurso>();
-            if (mod == null)
-                mod = objetivoNetObj.gameObject.AddComponent<ModificadorRecurso>();
+            // Usar coroutine para dar tiempo a la sincronización
+            StartCoroutine(AplicarEfectoConDelay(objetivoNetObj.gameObject, id));
+        }
+    }
 
-            mod.HacerInmovil();
+    private IEnumerator AplicarEfectoConDelay(GameObject objetivo, ulong id)
+    {
+        yield return new WaitForSeconds(0.1f);
+
+        // Aplicar modificador
+        ModificadorRecurso mod = objetivo.GetComponent<ModificadorRecurso>();
+        if (mod == null)
+        {
+            mod = objetivo.AddComponent<ModificadorRecurso>();
+
+            // Asignar recurso base
+            componente ingrediente = objetivo.GetComponent<componente>();
+            if (ingrediente != null && ingrediente.data != null)
+            {
+                mod.SetRecursoBase(ingrediente.data);
+            }
         }
 
-        // Notificar a todos los clientes
-        AplicarEfectoClientRpc(objetivosIds);
+        // Modificar directamente la variable de red en lugar de usar ServerRpc
+        bool movibleAntes = mod.EsMovible();
+        mod.esMovible.Value = false;
+
+        Debug.Log($"Queso: Aplicado efecto a {objetivo.name}. Movible: {movibleAntes} -> {mod.EsMovible()}");
+
+        // Notificar al cliente individualmente
+        AplicarEfectoASingleObjetivoClientRpc(id);
+    }
+
+    [ClientRpc]
+    private void PrepararObjetivoClientRpc(ulong id)
+    {
+        // Localizar objeto objetivo en el cliente
+        if (!NetworkManager.Singleton.SpawnManager.SpawnedObjects.TryGetValue(id, out NetworkObject objetivoNetObj))
+            return;
+
+        // Verificamos si ya existe el ModificadorRecurso en el cliente
+        ModificadorRecurso mod = objetivoNetObj.gameObject.GetComponent<ModificadorRecurso>();
+        if (mod == null)
+        {
+            mod = objetivoNetObj.gameObject.AddComponent<ModificadorRecurso>();
+
+            // Obtener recurso del componente
+            componente comp = objetivoNetObj.gameObject.GetComponent<componente>();
+            if (comp != null && comp.data != null)
+            {
+                mod.SetRecursoBase(comp.data);
+            }
+        }
+
+        Debug.Log($"[CLIENTE] Preparado objeto {objetivoNetObj.name} para recibir efecto Queso");
+    }
+
+    [ClientRpc]
+    private void AplicarEfectoASingleObjetivoClientRpc(ulong id)
+    {
+        if (!NetworkManager.Singleton.SpawnManager.SpawnedObjects.TryGetValue(id, out NetworkObject objetivoNetObj))
+            return;
+
+        Debug.Log($"[CLIENTE] Efecto Queso aplicado a {objetivoNetObj.name}, ahora es inmóvil");
     }
 
     [ClientRpc]

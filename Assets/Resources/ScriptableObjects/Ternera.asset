@@ -24,5 +24,5 @@ MonoBehaviour:
   esmovible: 0
   niveles_ignorar: 
   Sprite: {fileID: 0}
-  prefab3D: {fileID: 0}
+  prefab3D: {fileID: 2310177570414893844, guid: 107a3b4711162c6438b60a17d23d7f21, type: 3}
   aumentoVida: 1

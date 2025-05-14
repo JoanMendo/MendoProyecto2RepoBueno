@@ -24,6 +24,6 @@ MonoBehaviour:
   esmovible: 0
   niveles_ignorar: 
   Sprite: {fileID: 0}
-  prefab3D: {fileID: 0}
+  prefab3D: {fileID: 2305179757331706274, guid: d4b0709b1c6646746b35454972cde8ee, type: 3}
   materialResaltado: {fileID: 10302, guid: 0000000000000000f000000000000000, type: 0}
   colorResaltado: {r: 1, g: 0, b: 0, a: 1}

@@ -313,14 +313,87 @@ public class TurnManager : NetworkBehaviour
 
         if (faseTurnoActual.Value == FaseTurno.EjecucionAcciones)
         {
-            // Buscar todos los NodeMap en la escena
-            NodeMap[] tableros = FindObjectsOfType<NodeMap>();
-            foreach (NodeMap tablero in tableros)
-            {
-                Debug.Log($"[TurnManager] Activando efectos en tablero de cliente {tablero.ownerClientId}");
-                tablero.ActivarTodosLosEfectos();
-            }
+            // Iniciar Coroutine para ejecutar todas las acciones en secuencia
+            StartCoroutine(EjecutarAccionesSecuencialmente());
         }
+    }
+    private IEnumerator EjecutarAccionesSecuencialmente()
+    {
+        // 1. Primero activar todos los efectos de ingredientes en todos los tableros
+        NodeMap[] tableros = FindObjectsOfType<NodeMap>();
+        foreach (NodeMap tablero in tableros)
+        {
+            Debug.Log($"[TurnManager] Activando efectos en tablero de cliente {tablero.ownerClientId}");
+            tablero.ActivarTodosLosEfectos();
+        }
+
+        // Esperar un tiempo breve para que los efectos de ingredientes se procesen
+        yield return new WaitForSeconds(0.5f);
+
+        // 2. Ejecutar todos los efectos programados (NUEVO)
+        if (EfectosProgramados.Instance != null)
+        {
+            Debug.Log("[TurnManager] Ejecutando efectos programados");
+            EfectosProgramados.Instance.EjecutarEfectosProgramados();
+
+            // Esperar un tiempo para que los efectos se visualicen
+            yield return new WaitForSeconds(1.0f);
+        }
+        else
+        {
+            Debug.LogWarning("[TurnManager] No se encontró instancia de EfectosProgramados");
+        }
+
+        // 3. Luego ejecutar todos los utensilios programados
+        if (UtensiliosProgramados.Instance != null)
+        {
+            Debug.Log("[TurnManager] Ejecutando utensilios programados");
+
+            // Suscribirse al evento de finalización para avanzar automáticamente
+            UtensiliosProgramados.Instance.OnEjecucionCompletada += OnEjecucionUtensiliosCompletada;
+
+            // Iniciar ejecución de utensilios programados
+            UtensiliosProgramados.Instance.EjecutarUtensiliosProgramados();
+
+            Debug.Log("[TurnManager] Ejecución de utensilios iniciada, esperando finalización...");
+        }
+        else
+        {
+            Debug.LogWarning("[TurnManager] No se encontró instancia de UtensiliosProgramados");
+
+            // Si no hay instancia, avanzar después de un breve retraso
+            yield return new WaitForSeconds(1.0f);
+            AvanzarAutomaticamente();
+        }
+    }
+
+    // Este método será llamado cuando se complete la ejecución de los utensilios
+    private void OnEjecucionUtensiliosCompletada()
+    {
+        Debug.Log("[TurnManager] Ejecución de utensilios completada");
+
+        // Desuscribirse para evitar múltiples llamadas
+        if (UtensiliosProgramados.Instance != null)
+        {
+            UtensiliosProgramados.Instance.OnEjecucionCompletada -= OnEjecucionUtensiliosCompletada;
+        }
+
+        // Avanzar a la siguiente fase después de un breve retraso
+        StartCoroutine(AvanzarDespuesDeRetraso(1.0f));
+    }
+
+    private IEnumerator AvanzarDespuesDeRetraso(float segundos)
+    {
+        yield return new WaitForSeconds(segundos);
+        AvanzarAutomaticamente();
+    }
+
+    private void AvanzarAutomaticamente()
+    {
+        if (!IsServer) return;
+
+        Debug.Log("[TurnManager] Avanzando automáticamente después de completar acciones");
+        AvanzarFase();
     }
 
     public override void OnDestroy()
