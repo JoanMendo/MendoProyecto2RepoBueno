@@ -15,7 +15,7 @@ public class Node : NetworkBehaviour, IInteractuable
     public void SetNodeIngredient (GameObject prefabingredient)
     {
         hasIngredient = true; // Cambia el estado del nodo a "tiene ingrediente"
-        currentIngredient = Instantiate(prefabingredient, gameObject.transform.position, Quaternion.identity);
+        currentIngredient = Instantiate(prefabingredient, gameObject.transform.position, prefabingredient.transform.rotation);
         NetworkObject nodeNetworkObject = currentIngredient.GetComponent<NetworkObject>(); // Obtiene el componente NetworkObject del ingrediente
         nodeNetworkObject.Spawn(); // Asigna la propiedad del objeto al cliente que posee el nodo
     }

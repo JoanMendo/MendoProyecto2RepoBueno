@@ -270,6 +270,22 @@ PrefabInstance:
       propertyPath: TilesLayer.m_Bits
       value: 64
       objectReference: {fileID: 0}
+    - target: {fileID: 1382294294568084874, guid: e4255f343d92b2e45a07829f7bcdd3ae, type: 3}
+      propertyPath: m_Radius
+      value: 2.209689
+      objectReference: {fileID: 0}
+    - target: {fileID: 1382294294568084874, guid: e4255f343d92b2e45a07829f7bcdd3ae, type: 3}
+      propertyPath: m_Center.x
+      value: -1.2590514
+      objectReference: {fileID: 0}
+    - target: {fileID: 1382294294568084874, guid: e4255f343d92b2e45a07829f7bcdd3ae, type: 3}
+      propertyPath: m_Center.y
+      value: 0.009891757
+      objectReference: {fileID: 0}
+    - target: {fileID: 1382294294568084874, guid: e4255f343d92b2e45a07829f7bcdd3ae, type: 3}
+      propertyPath: m_Center.z
+      value: 2.129379
+      objectReference: {fileID: 0}
     - target: {fileID: 1892633075351900575, guid: e4255f343d92b2e45a07829f7bcdd3ae, type: 3}
       propertyPath: m_Name
       value: Cursor
@@ -277,6 +293,18 @@ PrefabInstance:
     - target: {fileID: 1892633075351900575, guid: e4255f343d92b2e45a07829f7bcdd3ae, type: 3}
       propertyPath: m_Layer
       value: 2
+      objectReference: {fileID: 0}
+    - target: {fileID: 3066293669700548836, guid: e4255f343d92b2e45a07829f7bcdd3ae, type: 3}
+      propertyPath: m_LocalScale.x
+      value: 0.8
+      objectReference: {fileID: 0}
+    - target: {fileID: 3066293669700548836, guid: e4255f343d92b2e45a07829f7bcdd3ae, type: 3}
+      propertyPath: m_LocalScale.y
+      value: 0.8
+      objectReference: {fileID: 0}
+    - target: {fileID: 3066293669700548836, guid: e4255f343d92b2e45a07829f7bcdd3ae, type: 3}
+      propertyPath: m_LocalScale.z
+      value: 0.8
       objectReference: {fileID: 0}
     - target: {fileID: 3066293669700548836, guid: e4255f343d92b2e45a07829f7bcdd3ae, type: 3}
       propertyPath: m_LocalPosition.x
@@ -292,27 +320,27 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 3066293669700548836, guid: e4255f343d92b2e45a07829f7bcdd3ae, type: 3}
       propertyPath: m_LocalRotation.w
-      value: 1
+      value: 0.7439815
       objectReference: {fileID: 0}
     - target: {fileID: 3066293669700548836, guid: e4255f343d92b2e45a07829f7bcdd3ae, type: 3}
       propertyPath: m_LocalRotation.x
-      value: 0
+      value: 0.18400048
       objectReference: {fileID: 0}
     - target: {fileID: 3066293669700548836, guid: e4255f343d92b2e45a07829f7bcdd3ae, type: 3}
       propertyPath: m_LocalRotation.y
-      value: 0
+      value: 0.6235791
       objectReference: {fileID: 0}
     - target: {fileID: 3066293669700548836, guid: e4255f343d92b2e45a07829f7bcdd3ae, type: 3}
       propertyPath: m_LocalRotation.z
-      value: 0
+      value: -0.15422277
       objectReference: {fileID: 0}
     - target: {fileID: 3066293669700548836, guid: e4255f343d92b2e45a07829f7bcdd3ae, type: 3}
       propertyPath: m_LocalEulerAnglesHint.x
-      value: 0
+      value: 27.783
       objectReference: {fileID: 0}
     - target: {fileID: 3066293669700548836, guid: e4255f343d92b2e45a07829f7bcdd3ae, type: 3}
       propertyPath: m_LocalEulerAnglesHint.y
-      value: 0
+      value: 79.937
       objectReference: {fileID: 0}
     - target: {fileID: 3066293669700548836, guid: e4255f343d92b2e45a07829f7bcdd3ae, type: 3}
       propertyPath: m_LocalEulerAnglesHint.z
@@ -597,7 +625,7 @@ Camera:
   near clip plane: 0.3
   far clip plane: 1000
   field of view: 60
-  orthographic: 1
+  orthographic: 0
   orthographic size: 28.59
   m_Depth: -1
   m_CullingMask:
