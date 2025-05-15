@@ -8,6 +8,7 @@ public class CursorManager : MonoBehaviour
     private InputManager inputManager;
     private Vector3 mousePosition;
     public GameObject currentResource; // Referencia al objeto de recurso actual
+    public float initialScale;
 
     private void Awake()
     {
@@ -20,7 +21,8 @@ public class CursorManager : MonoBehaviour
         {
             Debug.LogError("No se encontró el InputManager en la escena.");
         }
-      
+        initialScale = transform.localScale.x; // Guarda la escala inicial del cursor
+
     }
 
 
@@ -40,9 +42,10 @@ public class CursorManager : MonoBehaviour
         mousePosition = new Vector3(newMousePosition.x, newMousePosition.y, 0);// Obtener la posición del mouse en la pantalla
 
         mousePosition.z = Mathf.Abs(mainCamera.transform.position.z); // Asegúrate de que el Z es positivo para la proyección
+        Vector3 cameraForward = mainCamera.transform.forward;
 
         // Convertir la posición del mouse a coordenadas del mundo
-        Vector3 worldMousePosition = mainCamera.ScreenToWorldPoint(mousePosition);
+        Vector3 worldMousePosition = mainCamera.ScreenToWorldPoint(mousePosition) + cameraForward*3;
 
         // Ajustar la posición del cursor en el mundo
         transform.position = worldMousePosition;

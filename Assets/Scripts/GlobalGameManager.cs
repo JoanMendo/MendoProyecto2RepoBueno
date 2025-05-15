@@ -63,6 +63,6 @@ public class GlobalGameManager : NetworkBehaviour
 
     private Vector3 GetSpawnPosition(ulong clientId)
     {
-        return new Vector3((int)clientId * 35f, 0f, 0f);
+        return new Vector3(0f, 0f, (int)clientId * 35f);
     }
 }

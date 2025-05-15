@@ -68,7 +68,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: 8bf42a1c190c4da43b94eaa26cce1d63, type: 2}
+  - {fileID: 2100000, guid: f4ad5bb15a3a909418b026f37d2ffb59, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -151,6 +151,7 @@ MonoBehaviour:
   ShowTopMostFoldoutHeaderGroup: 1
   position: {x: 0, y: 0}
   hasIngredient: 0
+  currentIngredient: {fileID: 0}
 --- !u!114 &9016147853380283627
 MonoBehaviour:
   m_ObjectHideFlags: 0
