@@ -3,8 +3,13 @@ using Unity.Netcode;
 public class ReadyButton : NetworkBehaviour, IInteractuable
 {
 
-    public NetworkVariable<bool> isReady = new NetworkVariable<bool>(false);
-    public NetworkVariable<Color> color = new NetworkVariable<Color>();
+    public NetworkVariable<bool> isReady = new NetworkVariable<bool>(
+    false,
+    NetworkVariableReadPermission.Everyone,
+    NetworkVariableWritePermission.Owner
+);
+
+
 
     public void Awake()
     {
@@ -27,11 +32,12 @@ public class ReadyButton : NetworkBehaviour, IInteractuable
     {
         if (isReady.Value)
         {
-            color.Value = Color.red;
+
+            gameObject.GetComponent<Renderer>().material.color = Color.red;
         }
         else
         {
-            color.Value = Color.green;
+            gameObject.gameObject.GetComponent<Renderer>().material.color = Color.green;
         }
         Object.FindFirstObjectByType<TurnManager>().CheckPlayersReady();
     }

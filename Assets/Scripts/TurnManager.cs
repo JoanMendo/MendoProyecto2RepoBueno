@@ -62,7 +62,7 @@ public class TurnManager : MonoBehaviour
     {
         foreach (ReadyButton readyButton in readyButtons)
         {
-            readyButton.isReady.Value = false;
+           // readyButton.isReady.Value = false;
         }
         switch (faseActual)
         {

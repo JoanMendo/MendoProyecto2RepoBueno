@@ -4,65 +4,100 @@ using System.Collections.Generic;
 
 public class GlobalGameManager : NetworkBehaviour
 {
-    public GameObject tableroPrefab;
+    [Tooltip("Lista de tableros ya presentes en la escena (SceneObjects con NetworkObject).")]
+    public List<GameObject> tablerosEnEscena; // Asignar manualmente desde el inspector
 
-    private bool hasSpawnedTableros = false;
+    private bool hasAssignedOwners = false;
 
     public override void OnNetworkSpawn()
     {
-        // Solo el servidor hace esto
-        if (IsServer && !hasSpawnedTableros)
+        if (IsServer && !hasAssignedOwners)
         {
-            SpawnAllTableros();
-            hasSpawnedTableros = true;
-        }
-
-    }
-
-    private void SpawnAllTableros()
-    {
-
-        foreach (var client in NetworkManager.Singleton.ConnectedClientsList)
-        {
-            ulong clientId = client.ClientId;
-            SpawnTableroForClient(clientId); // todos los tableros, uno por cliente
+            AsignarYSpawnearTableros();
+            hasAssignedOwners = true;
         }
     }
 
-    private void SpawnTableroForClient(ulong clientId)
+    private void AsignarYSpawnearTableros()
     {
-        Vector3 spawnPos = GetSpawnPosition(clientId);
-
-        // Instanciar el tablero
-        GameObject tablero = Instantiate(tableroPrefab, spawnPos, Quaternion.identity);
-
-        // Generar nodos del mapa
-        var nodeMap = tablero.GetComponentInChildren<NodeMap>();
-        nodeMap.Generate3DTilemap();
-
-        tablero.GetComponent<NetworkObject>().SpawnWithOwnership(clientId);
-        // Spawnear nodos con ownership
-        foreach (GameObject casilla in nodeMap.nodesList)
+        if (tablerosEnEscena == null || tablerosEnEscena.Count == 0)
         {
-
-            casilla.GetComponent<NetworkObject>().SpawnWithOwnership(clientId);
-
+            Debug.LogError("No hay tableros asignados en el inspector");
+            return;
         }
-        /*
-        foreach (GameObject child in tablero.transform)
+
+        var clientes = new List<ulong>(NetworkManager.Singleton.ConnectedClients.Keys);
+
+        if (clientes.Count < tablerosEnEscena.Count)
         {
-            // Asignar ownership a los hijos del tablero
-            if (child.TryGetComponent<NetworkObject>(out NetworkObject networkChild))
+            Debug.LogWarning($"Hay más tableros ({tablerosEnEscena.Count}) que clientes conectados ({clientes.Count})");
+        }
+
+        for (int i = 0; i < Mathf.Min(clientes.Count, tablerosEnEscena.Count); i++)
+        {
+            ulong clientId = clientes[i];
+            GameObject tablero = tablerosEnEscena[i];
+
+            if (tablero == null)
             {
-                networkChild.SpawnWithOwnership(clientId);
+                Debug.LogError($"Tablero en índice {i} es null");
+                continue;
             }
-            
+
+            // Asignar ownership del tablero principal
+            AsignarOwnershipRecursivo(tablero, clientId);
         }
-        */
     }
 
-    private Vector3 GetSpawnPosition(ulong clientId)
+    private void AsignarOwnershipRecursivo(GameObject parent, ulong clientId)
     {
-        return new Vector3(0f, 0f, -20 + (int)clientId * 35f);
+        NetworkObject netObj = parent.GetComponent<NetworkObject>();
+
+        if (netObj == null)
+        {
+            Debug.LogWarning($"Objeto {parent.name} no tiene NetworkObject");
+            return;
+        }
+
+        // Spawnear y asignar ownership si no está ya spawned
+        if (!netObj.IsSpawned)
+        {
+            netObj.SpawnWithOwnership(clientId);
+        }
+        else
+        {
+            netObj.ChangeOwnership(clientId);
+        }
+
+        // Procesar NodeMap si existe
+        NodeMap nodeMap = parent.GetComponentInChildren<NodeMap>();
+        if (nodeMap != null)
+        {
+            nodeMap.Generate3DTilemap(); // Asegurarse que los nodos están generados
+
+            foreach (GameObject casilla in nodeMap.nodesList)
+            {
+                if (casilla == null) continue;
+
+                NetworkObject childNetObj = casilla.GetComponent<NetworkObject>();
+                if (childNetObj != null)
+                {
+                    if (!childNetObj.IsSpawned)
+                    {
+                        childNetObj.SpawnWithOwnership(clientId);
+                    }
+                    else
+                    {
+                        childNetObj.ChangeOwnership(clientId);
+                    }
+                }
+            }
+        }
+
+        // Asignar ownership a todos los hijos con NetworkObject
+        foreach (Transform child in parent.transform)
+        {
+            AsignarOwnershipRecursivo(child.gameObject, clientId);
+        }
     }
 }
