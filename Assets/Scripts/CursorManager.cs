@@ -5,10 +5,13 @@ public class CursorManager : MonoBehaviour
 {
     public Camera mainCamera; // Asigna la cámara principal en el Inspector
     public LayerMask InteractLayer; // Define en qué capas puede hacer colisión el Raycast
-    private InputManager inputManager;
-    private Vector3 mousePosition;
+
     public GameObject currentResource; // Referencia al objeto de recurso actual
     public float initialScale;
+    public GameObject cursorPrefab;
+
+    private InputManager inputManager;
+    private Vector3 mousePosition;
 
     private void Awake()
     {
@@ -49,6 +52,21 @@ public class CursorManager : MonoBehaviour
 
         // Ajustar la posición del cursor en el mundo
         transform.position = worldMousePosition;
+    }
+
+    public void ResetPointerMesh()
+    {
+
+        if (cursorPrefab != null)
+        {
+            LocalGameManager.Instance.currentIngredient = null;
+
+            gameObject.transform.localScale = new Vector3(initialScale, initialScale, initialScale); // Ajustar la escala del cursor
+            gameObject.transform.rotation = Quaternion.Euler(27.7831211f, 79.9371033f, -4.82511587e-06f);
+            gameObject.GetComponent<MeshFilter>().mesh = cursorPrefab.GetComponent<MeshFilter>().sharedMesh; // Cambia la malla del cursor
+            gameObject.GetComponent<MeshRenderer>().materials = cursorPrefab.GetComponent<MeshRenderer>().sharedMaterials;
+        }
+
     }
 
     private void Interact()

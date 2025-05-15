@@ -18,6 +18,12 @@ public class Node : NetworkBehaviour, IInteractuable
         currentIngredient = Instantiate(prefabingredient, gameObject.transform.position, prefabingredient.transform.rotation);
         NetworkObject nodeNetworkObject = currentIngredient.GetComponent<NetworkObject>(); // Obtiene el componente NetworkObject del ingrediente
         nodeNetworkObject.Spawn(); // Asigna la propiedad del objeto al cliente que posee el nodo
+
+        CursorManager cursorManager = FindFirstObjectByType<CursorManager>();
+        cursorManager.ResetPointerMesh(); // Resetea el mesh del cursor
+
+
+
     }
 
     public void Interactuar()

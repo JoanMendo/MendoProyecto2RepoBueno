@@ -16,7 +16,7 @@ public class SetCurrentIngredient : MonoBehaviour, IInteractuable
         cursor.GetComponent<MeshFilter>().mesh = GetComponent<MeshFilter>().sharedMesh;
 
         // Cambia la escala del cursor proporcionalmente
-        cursor.transform.localScale = transform.localScale * cursorManager.initialScale;
+        cursor.transform.localScale = Ingredient.transform.localScale * cursorManager.initialScale;
         cursor.transform.rotation = transform.rotation;
 
         // Copia los materiales del ingrediente al cursor

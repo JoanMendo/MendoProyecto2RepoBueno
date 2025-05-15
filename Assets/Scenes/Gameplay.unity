@@ -267,6 +267,10 @@ PrefabInstance:
       value: 
       objectReference: {fileID: 1983953450}
     - target: {fileID: 956118200475391074, guid: e4255f343d92b2e45a07829f7bcdd3ae, type: 3}
+      propertyPath: cursorPrefab
+      value: 
+      objectReference: {fileID: 1892633075351900575, guid: e4255f343d92b2e45a07829f7bcdd3ae, type: 3}
+    - target: {fileID: 956118200475391074, guid: e4255f343d92b2e45a07829f7bcdd3ae, type: 3}
       propertyPath: TilesLayer.m_Bits
       value: 64
       objectReference: {fileID: 0}
@@ -600,8 +604,8 @@ Camera:
   m_GameObject: {fileID: 1983953447}
   m_Enabled: 1
   serializedVersion: 2
-  m_ClearFlags: 1
-  m_BackGroundColor: {r: 0.19215687, g: 0.3019608, b: 0.4745098, a: 0}
+  m_ClearFlags: 2
+  m_BackGroundColor: {r: 0.5990566, g: 0.754979, b: 1, a: 0}
   m_projectionMatrixMode: 1
   m_GateFitMode: 2
   m_FOVAxisMode: 0
@@ -625,8 +629,8 @@ Camera:
   near clip plane: 0.3
   far clip plane: 1000
   field of view: 60
-  orthographic: 0
-  orthographic size: 28.59
+  orthographic: 1
+  orthographic size: 25
   m_Depth: -1
   m_CullingMask:
     serializedVersion: 2
@@ -651,7 +655,7 @@ Transform:
   m_GameObject: {fileID: 1983953447}
   serializedVersion: 2
   m_LocalRotation: {x: 0.27059805, y: -0.6532815, z: 0.27059805, w: 0.6532815}
-  m_LocalPosition: {x: 73.8, y: 53.39, z: -1.39}
+  m_LocalPosition: {x: 64, y: 53.39, z: -1.39}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
