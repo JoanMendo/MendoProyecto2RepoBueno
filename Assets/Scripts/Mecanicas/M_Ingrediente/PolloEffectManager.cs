@@ -4,20 +4,19 @@ using System.Collections;
 using System.Collections.Generic;
 using System;
 
-
 public class PolloEffectManager : NetworkBehaviour, IEffectManager
 {
+    [Header("Configuración")]
     [SerializeField] private float velocidadRotacion = 90f;
-    [SerializeField] private float duracionEfecto = 3f;
+    [SerializeField] private float duracionEfecto = 0.5f;
     [SerializeField] private float radioOrbita = 0.5f;
 
     private GameObject nodoOrigen;
     private List<GameObject> nodosAfectados = new List<GameObject>();
     private Dictionary<int, Node> mapaIndexNodo = new Dictionary<int, Node>();
     private Dictionary<int, GameObject> mapaIndexIngrediente = new Dictionary<int, GameObject>();
-    private float tiempoAnimacion = 0f;
-    private bool efectoActivo = false;
-    private bool rotacionCompletada = false;
+    private Coroutine animacionCoroutine;
+    private bool animacionEnCurso = false;
     private IngredientesSO _ingredienteConfigurado;
 
     public void ConfigurarConIngrediente(IngredientesSO ingrediente)
@@ -34,6 +33,21 @@ public class PolloEffectManager : NetworkBehaviour, IEffectManager
 
         this.nodoOrigen = nodoOrigen;
         this.nodosAfectados = new List<GameObject>(nodosAfectados);
+
+        // Cancelar cualquier animación anterior que pueda estar en curso
+        if (animacionCoroutine != null)
+        {
+            StopCoroutine(animacionCoroutine);
+        }
+
+        // Iniciar la nueva animación
+        animacionCoroutine = StartCoroutine(AnimarRotacionCoroutine());
+    }
+
+    private IEnumerator AnimarRotacionCoroutine()
+    {
+        animacionEnCurso = true;
+        Debug.Log($"PolloEffectManager: Iniciando animación de rotación con {nodosAfectados.Count} nodos");
 
         // Construir una lista simple con los ingredientes afectados
         mapaIndexNodo.Clear();
@@ -54,9 +68,9 @@ public class PolloEffectManager : NetworkBehaviour, IEffectManager
         // Si no hay suficientes ingredientes, cancelar
         if (nodosConIngredientes.Count < 2)
         {
-            Debug.Log("No hay suficientes ingredientes para rotar");
-            FinalizarEfectoLogica();
-            return;
+            Debug.Log("PolloEffectManager: No hay suficientes ingredientes para rotar");
+            LimpiarEfecto();
+            yield break;
         }
 
         // Generar índices secuenciales para los nodos e ingredientes
@@ -64,86 +78,69 @@ public class PolloEffectManager : NetworkBehaviour, IEffectManager
         {
             mapaIndexNodo[i] = nodosConIngredientes[i];
             mapaIndexIngrediente[i] = nodosConIngredientes[i].currentIngredient;
-            Debug.Log($"Índice {i}: Nodo en {nodosConIngredientes[i].position} con ingrediente {nodosConIngredientes[i].currentIngredient.name}");
+            Debug.Log($"PolloEffectManager: Índice {i}: Nodo en {nodosConIngredientes[i].position} con ingrediente {nodosConIngredientes[i].currentIngredient.name}");
         }
 
-        tiempoAnimacion = 0f;
-        rotacionCompletada = false;
-        efectoActivo = true;
+        // Animar rotación
+        float tiempoAnimacion = 0f;
 
-        IniciarEfectoServerRpc();
-    }
-
-    [ServerRpc(RequireOwnership = false)]
-    private void IniciarEfectoServerRpc()
-    {
-        IniciarEfectoClientRpc();
-    }
-
-    [ClientRpc]
-    private void IniciarEfectoClientRpc() { }
-
-    private void Update()
-    {
-        if (!efectoActivo) return;
-
-        tiempoAnimacion += Time.deltaTime;
-
-        if (tiempoAnimacion <= duracionEfecto)
+        while (tiempoAnimacion <= duracionEfecto)
         {
-            // Animación visual
-            AnimarRotacion();
-        }
-        else if (!rotacionCompletada)
-        {
-            rotacionCompletada = true;
+            // Animar cada frame
+            float porcentajeCompletado = tiempoAnimacion / duracionEfecto;
+            float anguloActual = porcentajeCompletado * 360f;
 
-            if (IsServer)
+            Vector3 posicionCentral = nodoOrigen.transform.position;
+
+            for (int i = 0; i < mapaIndexIngrediente.Count; i++)
             {
-                RealizarIntercambioDeIngredientes();
+                GameObject ingrediente = mapaIndexIngrediente[i];
+                if (ingrediente == null) continue;
+
+                // Distribuir los ingredientes en un círculo y rotarlos
+                float anguloBase = (360f / mapaIndexIngrediente.Count) * i;
+                float anguloFinal = anguloBase + anguloActual;
+                float radianes = anguloFinal * Mathf.Deg2Rad;
+
+                Vector3 desplazamiento = new Vector3(
+                    Mathf.Sin(radianes) * radioOrbita,
+                    0,
+                    Mathf.Cos(radianes) * radioOrbita
+                );
+
+                Vector3 nuevaPosicion = posicionCentral + desplazamiento;
+                nuevaPosicion.y = ingrediente.transform.position.y; // Mantener altura
+
+                ingrediente.transform.position = nuevaPosicion;
+                ingrediente.transform.LookAt(new Vector3(posicionCentral.x, ingrediente.transform.position.y, posicionCentral.z));
             }
 
-            FinalizarEfectoLogica();
+            // Incrementar tiempo y esperar al siguiente frame
+            tiempoAnimacion += 0.1f;
+            yield return null;
         }
-    }
 
-    private void AnimarRotacion()
-    {
-        float porcentajeCompletado = tiempoAnimacion / duracionEfecto;
-        float anguloActual = porcentajeCompletado * 360f;
+        Debug.Log("PolloEffectManager: Animación completada, realizando intercambio final");
 
-        Vector3 posicionCentral = nodoOrigen.transform.position;
-
-        // Animar cada ingrediente según su índice
-        for (int i = 0; i < mapaIndexIngrediente.Count; i++)
+        // Al terminar la animación, realizar el intercambio de ingredientes
+        if (IsServer)
         {
-            GameObject ingrediente = mapaIndexIngrediente[i];
-            if (ingrediente == null) continue;
-
-            // Distribuir los ingredientes en un círculo y rotarlos
-            float anguloBase = (360f / mapaIndexIngrediente.Count) * i;
-            float anguloFinal = anguloBase + anguloActual;
-            float radianes = anguloFinal * Mathf.Deg2Rad;
-
-            Vector3 desplazamiento = new Vector3(
-                Mathf.Sin(radianes) * radioOrbita,
-                0,
-                Mathf.Cos(radianes) * radioOrbita
-            );
-
-            Vector3 nuevaPosicion = posicionCentral + desplazamiento;
-            nuevaPosicion.y = ingrediente.transform.position.y; // Mantener altura
-
-            ingrediente.transform.position = nuevaPosicion;
-            ingrediente.transform.LookAt(new Vector3(posicionCentral.x, ingrediente.transform.position.y, posicionCentral.z));
+            RealizarIntercambioDeIngredientes();
         }
+
+        // Esperar un momento para efectos visuales finales
+        yield return new WaitForSeconds(0.2f);
+
+        // Limpieza final
+        animacionEnCurso = false;
+        LimpiarEfecto();
     }
 
     private void RealizarIntercambioDeIngredientes()
     {
         if (!IsServer) return;
 
-        Debug.Log("Realizando rotación en sentido horario");
+        Debug.Log("PolloEffectManager: Realizando rotación en sentido horario");
 
         // Obtener los nombres de prefabs de cada ingrediente
         Dictionary<int, string> nombresPrefabs = new Dictionary<int, string>();
@@ -181,7 +178,7 @@ public class PolloEffectManager : NetworkBehaviour, IEffectManager
             {
                 string nombrePrefab = nombresPrefabs[indiceOrigen];
                 planDeColocacion[nodoDestino] = nombrePrefab;
-                Debug.Log($"Plan: Mover {nombrePrefab} al nodo {nodoDestino.position}");
+                Debug.Log($"PolloEffectManager: Plan: Mover {nombrePrefab} al nodo {nodoDestino.position}");
             }
         }
 
@@ -204,7 +201,7 @@ public class PolloEffectManager : NetworkBehaviour, IEffectManager
             Node nodo = entry.Key;
             string nombrePrefab = entry.Value;
 
-            Debug.Log($"Colocando {nombrePrefab} en nodo {nodo.position}");
+            Debug.Log($"PolloEffectManager: Colocando {nombrePrefab} en nodo {nodo.position}");
 
             // Intentar cargar el prefab de varias formas
             GameObject prefab = null;
@@ -214,7 +211,7 @@ public class PolloEffectManager : NetworkBehaviour, IEffectManager
             prefab = Resources.Load<GameObject>($"Prefabs/Ingredients(Network)/{nombrePrefabFormateado}");
 
             // Registro para depuración
-            Debug.Log($"Intentando cargar: Prefabs/Ingredients(Network)/{nombrePrefabFormateado}");
+            Debug.Log($"PolloEffectManager: Intentando cargar: Prefabs/Ingredients(Network)/{nombrePrefabFormateado}");
 
             // Opción 2: A través de IngredientManager si está disponible
             if (prefab == null && IngredientManager.Instance != null)
@@ -230,11 +227,11 @@ public class PolloEffectManager : NetworkBehaviour, IEffectManager
             if (prefab != null)
             {
                 nodo.SetNodeIngredient(prefab);
-                Debug.Log($"Colocado {nombrePrefab} en nodo {nodo.position}");
+                Debug.Log($"PolloEffectManager: Colocado {nombrePrefab} en nodo {nodo.position}");
             }
             else
             {
-                Debug.LogError($"No se pudo encontrar el prefab: {nombrePrefab}");
+                Debug.LogError($"PolloEffectManager: No se pudo encontrar el prefab: {nombrePrefab}");
             }
         }
 
@@ -244,23 +241,23 @@ public class PolloEffectManager : NetworkBehaviour, IEffectManager
     [ClientRpc]
     private void IntercambioCompletadoClientRpc()
     {
-        Debug.Log("Rotación de ingredientes completada");
+        Debug.Log("PolloEffectManager: Rotación de ingredientes completada");
     }
 
     public void LimpiarEfecto()
     {
-        FinalizarEfectoLogica();
-    }
+        Debug.Log("PolloEffectManager: Limpiando efecto");
 
-    private void FinalizarEfectoLogica()
-    {
-        if (!efectoActivo) return;
-
-        efectoActivo = false;
-
-        if (!rotacionCompletada)
+        if (animacionCoroutine != null)
         {
-            // Restaurar posiciones originales si no completamos la rotación
+            StopCoroutine(animacionCoroutine);
+            animacionCoroutine = null;
+        }
+
+        // Restaurar posiciones originales si no completamos la rotación y estamos en medio de la animación
+        if (animacionEnCurso)
+        {
+            Debug.Log("PolloEffectManager: Restaurando posiciones originales");
             foreach (var entry in mapaIndexIngrediente)
             {
                 GameObject ingrediente = entry.Value;
@@ -274,6 +271,8 @@ public class PolloEffectManager : NetworkBehaviour, IEffectManager
                 }
             }
         }
+
+        animacionEnCurso = false;
 
         if (IsSpawned)
         {
@@ -291,7 +290,7 @@ public class PolloEffectManager : NetworkBehaviour, IEffectManager
     [ClientRpc]
     private void FinalizarEfectoClientRpc()
     {
-        Debug.Log("Efecto Pollo finalizado");
+        Debug.Log("PolloEffectManager: Efecto finalizado");
     }
 
     private IEnumerator DestroyAfterDelay(float delay)
@@ -305,6 +304,23 @@ public class PolloEffectManager : NetworkBehaviour, IEffectManager
         else if (gameObject != null)
         {
             Destroy(gameObject);
+        }
+    }
+
+    // Método para comprobar si el efecto está activo (implementación opcional de IEffectManager mejorado)
+    public bool EstaActivo()
+    {
+        return animacionEnCurso;
+    }
+
+    // Implementación de OnDestroy para asegurar limpieza correcta
+    private void OnDestroy()
+    {
+        // Asegurar limpieza de coroutines
+        if (animacionCoroutine != null)
+        {
+            StopCoroutine(animacionCoroutine);
+            animacionCoroutine = null;
         }
     }
 }

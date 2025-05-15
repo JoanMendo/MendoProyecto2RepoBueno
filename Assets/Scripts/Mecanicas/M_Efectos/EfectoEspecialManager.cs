@@ -2,12 +2,17 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using Unity.Netcode;
+using System.Linq;
 
+/// <summary>
+/// Gestor para el efecto S_Especial que mueve ingredientes en las cuatro direcciones.
+/// </summary>
 public class EfectoEspecialManager : NetworkBehaviour, IEfectoManager
 {
     [Header("Configuración")]
     [SerializeField] private float fuerzaEmpuje = 1f;
     [SerializeField] private float tiempoEntreEmpujes = 0.2f;
+    [SerializeField] private bool mostrarDebug = true;
 
     // Direcciones posibles para empujar
     private static readonly Vector2Int[] DIRECCIONES = new Vector2Int[]
@@ -22,17 +27,29 @@ public class EfectoEspecialManager : NetworkBehaviour, IEfectoManager
     private GameObject nodoOrigen;
     private S_Especial efectoConfigurado;
     private int duracionRestante;
+    private NodeMap mapaDeNodos;
 
     // Para efectos visuales
     private ParticleSystem particulas;
 
-    // Implementación de la interfaz IEfectoManager
+    // Estado de ejecución
+    private NetworkVariable<bool> efectoActivo = new NetworkVariable<bool>(false);
+    private Coroutine rutinaEmpujes;
+
+    /// <summary>
+    /// Configura el manager con los datos del efecto
+    /// </summary>
     public void ConfigurarConEfecto(Efectos efecto)
     {
         if (efecto is S_Especial efectoEspecial)
         {
             efectoConfigurado = efectoEspecial;
             duracionRestante = efecto.duracion;
+
+            if (mostrarDebug)
+            {
+                Debug.Log($"EfectoEspecialManager configurado con: {efecto.name}, duración: {duracionRestante}");
+            }
         }
         else
         {
@@ -40,6 +57,9 @@ public class EfectoEspecialManager : NetworkBehaviour, IEfectoManager
         }
     }
 
+    /// <summary>
+    /// Valida si los nodos seleccionados son adecuados para este efecto
+    /// </summary>
     public bool ValidarNodos(List<GameObject> nodosSeleccionados)
     {
         // S_Especial necesita exactamente 1 nodo
@@ -53,10 +73,12 @@ public class EfectoEspecialManager : NetworkBehaviour, IEfectoManager
 
         // Aquí puedes añadir validaciones específicas
         // Por ejemplo, verificar que hay suficiente espacio en 4 direcciones
-
         return true;
     }
 
+    /// <summary>
+    /// Ejecuta la acción del efecto sobre los nodos seleccionados
+    /// </summary>
     public void EjecutarAccion(List<GameObject> nodosSeleccionados)
     {
         if (!ValidarNodos(nodosSeleccionados))
@@ -74,39 +96,9 @@ public class EfectoEspecialManager : NetworkBehaviour, IEfectoManager
         IniciarEfecto(nodoOrigen, duracionRestante);
     }
 
-    public void LimpiarEfecto()
-    {
-        if (IsServer)
-        {
-            // Notificar a los clientes
-            LimpiarEfectoClientRpc();
-
-            // Programar destrucción
-            StartCoroutine(DestruirDespuesDeDelay(0.5f));
-        }
-    }
-
-    // Singleton para evitar duplicados
-    public static EfectoEspecialManager Instance { get; private set; }
-
-    private void Awake()
-    {
-        // Implementación simple de singleton
-        if (Instance != null && Instance != this)
-        {
-            Destroy(gameObject);
-            return;
-        }
-        Instance = this;
-
-        // Configurar efectos visuales
-        if (particulas == null)
-        {
-            particulas = GetComponentInChildren<ParticleSystem>();
-        }
-    }
-
-    // Método principal para iniciar el efecto
+    /// <summary>
+    /// Inicia el efecto especial en el nodo seleccionado
+    /// </summary>
     public void IniciarEfecto(GameObject nodo, int duracion)
     {
         // Validaciones
@@ -128,6 +120,14 @@ public class EfectoEspecialManager : NetworkBehaviour, IEfectoManager
             return;
         }
 
+        // Guardar referencia al mapa de nodos
+        mapaDeNodos = nodoComp.nodeMap;
+        if (mapaDeNodos == null)
+        {
+            Debug.LogError("EfectoEspecialManager: No se puede obtener referencia al NodeMap");
+            return;
+        }
+
         // Buscar componente de efecto en el ingrediente
         if (nodoComp.currentIngredient != null)
         {
@@ -138,53 +138,109 @@ public class EfectoEspecialManager : NetworkBehaviour, IEfectoManager
             }
         }
 
-        if (efectoConfigurado == null)
+        // Asegurar que estamos en la red
+        if (!IsSpawned && GetComponent<NetworkObject>() != null)
         {
-            Debug.LogWarning("EfectoEspecialManager: No se pudo encontrar configuración S_Especial");
+            GetComponent<NetworkObject>().Spawn();
         }
 
-        // Mostrar efectos visuales
-        if (particulas != null)
-        {
-            particulas.transform.position = nodo.transform.position + Vector3.up * 0.5f;
-            particulas.Play();
-        }
+        // Configurar efectos visuales
+        ConfigurarEfectosVisuales(nodo);
 
-        Debug.Log($"Efecto especial activado desde {nodo.name} por {duracion} turnos");
+        // Activar el efecto
+        efectoActivo.Value = true;
+
+        if (mostrarDebug)
+        {
+            Debug.Log($"Efecto especial activado desde {nodo.name} por {duracion} turnos");
+        }
 
         // Empujar ingredientes si estamos en el servidor
         if (IsServer)
         {
             // Iniciar el empuje inmediatamente
-            EmpujarIngredientes();
+            IniciarEmpujesServerRpc();
         }
     }
 
-    // Método para empujar ingredientes en la fila/columna del nodo origen
-    private void EmpujarIngredientes()
+    /// <summary>
+    /// Configura los efectos visuales del efecto especial
+    /// </summary>
+    private void ConfigurarEfectosVisuales(GameObject nodo)
     {
-        if (!IsServer) return;
+        // Crear sistema de partículas si no existe
+        if (particulas == null)
+        {
+            GameObject efectoVisual = new GameObject("EfectoEspecialVFX");
+            efectoVisual.transform.SetParent(transform);
+            particulas = efectoVisual.AddComponent<ParticleSystem>();
 
-        Node nodoComp = nodoOrigen?.GetComponent<Node>();
-        if (nodoComp == null || nodoComp.nodeMap == null) return;
+            // Configuración básica de partículas
+            var main = particulas.main;
+            main.startColor = Color.green;
+            main.startSize = 0.1f;
+            main.startLifetime = 2f;
+            main.startSpeed = 1f;
 
-        // Obtener posición del nodo origen
-        Vector2Int posOrigen = nodoComp.position;
+            // Posicionar el sistema de partículas
+            efectoVisual.transform.position = nodo.transform.position + Vector3.up * 0.5f;
+        }
 
-        // Para cada dirección, empujar todos los ingredientes en esa línea
-        StartCoroutine(ProcesarEmpujesPorDireccion());
+        // Activar partículas
+        if (particulas != null)
+        {
+            particulas.Play();
+        }
     }
 
+    /// <summary>
+    /// Server RPC para iniciar el proceso de empujes
+    /// </summary>
+    [ServerRpc(RequireOwnership = false)]
+    private void IniciarEmpujesServerRpc()
+    {
+        if (mostrarDebug)
+        {
+            Debug.Log("Servidor: Iniciando proceso de empujes en cuatro direcciones");
+        }
+
+        // Iniciar coroutine para procesar empujes secuenciales
+        if (rutinaEmpujes == null)
+        {
+            rutinaEmpujes = StartCoroutine(ProcesarEmpujesPorDireccion());
+        }
+    }
+
+    /// <summary>
+    /// Coroutine que procesa empujes en cada dirección
+    /// </summary>
     private IEnumerator ProcesarEmpujesPorDireccion()
     {
+        if (mostrarDebug)
+        {
+            Debug.Log("Iniciando coroutine de empujes por dirección");
+        }
+
         Node nodoComp = nodoOrigen?.GetComponent<Node>();
-        if (nodoComp == null || nodoComp.nodeMap == null) yield break;
+        if (nodoComp == null || mapaDeNodos == null)
+        {
+            if (mostrarDebug)
+            {
+                Debug.LogError("Componentes necesarios no encontrados para empujes");
+            }
+            yield break;
+        }
 
         Vector2Int posOrigen = nodoComp.position;
 
         // Para cada dirección, empujar ingredientes
         foreach (Vector2Int dir in DIRECCIONES)
         {
+            if (mostrarDebug)
+            {
+                Debug.Log($"Procesando empujes en dirección: {dir}");
+            }
+
             // Obtener todos los nodos en esa dirección que tienen ingredientes
             List<GameObject> nodosEnDireccion = ObtenerNodosEnDireccion(posOrigen, dir);
 
@@ -193,6 +249,11 @@ public class EfectoEspecialManager : NetworkBehaviour, IEfectoManager
                 Node node = n.GetComponent<Node>();
                 return node != null && node.hasIngredient.Value && node.PuedeMoverse();
             });
+
+            if (mostrarDebug)
+            {
+                Debug.Log($"Encontrados {nodosMovibles.Count} nodos movibles en dirección {dir}");
+            }
 
             // Si hay nodos que empujar, realizar empuje
             if (nodosMovibles.Count > 0)
@@ -224,22 +285,38 @@ public class EfectoEspecialManager : NetworkBehaviour, IEfectoManager
             // Esperar un poco antes de la siguiente dirección
             yield return new WaitForSeconds(0.1f);
         }
+
+        // Limpiar la referencia a la coroutine
+        rutinaEmpujes = null;
+
+        if (mostrarDebug)
+        {
+            Debug.Log("Completado el proceso de empujes en todas direcciones");
+        }
     }
 
-    // Obtener todos los nodos en una dirección específica
+    /// <summary>
+    /// Obtiene todos los nodos en una dirección específica desde el origen
+    /// </summary>
     private List<GameObject> ObtenerNodosEnDireccion(Vector2Int posOrigen, Vector2Int direccion)
     {
         List<GameObject> resultado = new List<GameObject>();
 
-        Node nodoComp = nodoOrigen?.GetComponent<Node>();
-        if (nodoComp == null || nodoComp.nodeMap == null) return resultado;
+        if (mapaDeNodos == null || mapaDeNodos.nodesList == null)
+        {
+            if (mostrarDebug)
+            {
+                Debug.LogError("No se puede obtener la lista de nodos del mapa");
+            }
+            return resultado;
+        }
 
         // Buscar en esa dirección hasta encontrar el límite del tablero
         Vector2Int posActual = posOrigen + direccion;
 
         while (true)
         {
-            GameObject nodoEnPos = nodoComp.nodeMap.GetNodeAtPosition(posActual);
+            GameObject nodoEnPos = mapaDeNodos.GetNodeAtPosition(posActual);
             if (nodoEnPos == null) break; // Llegamos al límite
 
             resultado.Add(nodoEnPos);
@@ -249,19 +326,21 @@ public class EfectoEspecialManager : NetworkBehaviour, IEfectoManager
         return resultado;
     }
 
-    // Empujar un nodo en la dirección especificada
+    /// <summary>
+    /// Empuja un nodo en la dirección especificada
+    /// </summary>
     private void EmpujarNodo(GameObject nodo, Vector2Int direccion)
     {
-        if (!IsServer) return;
+        if (!IsServer || nodo == null) return;
 
         Node nodoComp = nodo.GetComponent<Node>();
-        if (nodoComp == null || nodoComp.nodeMap == null) return;
+        if (nodoComp == null || mapaDeNodos == null) return;
 
         // Calcular posición destino
         Vector2Int posDestino = nodoComp.position + direccion;
 
         // Buscar nodo en esa posición
-        GameObject nodoDestino = nodoComp.nodeMap.GetNodeAtPosition(posDestino);
+        GameObject nodoDestino = mapaDeNodos.GetNodeAtPosition(posDestino);
         if (nodoDestino == null) return;
 
         Node nodoDestinoComp = nodoDestino.GetComponent<Node>();
@@ -270,30 +349,43 @@ public class EfectoEspecialManager : NetworkBehaviour, IEfectoManager
         // Solo mover si el destino está vacío
         if (!nodoDestinoComp.hasIngredient.Value)
         {
-            MoverIngredienteServerRpc(
-                nodo.GetComponent<NetworkObject>().NetworkObjectId,
-                nodoDestino.GetComponent<NetworkObject>().NetworkObjectId
-            );
+            // Verificar que ambos nodos tienen NetworkObject
+            NetworkObject origenNetObj = nodo.GetComponent<NetworkObject>();
+            NetworkObject destinoNetObj = nodoDestino.GetComponent<NetworkObject>();
+
+            if (origenNetObj != null && destinoNetObj != null &&
+                origenNetObj.IsSpawned && destinoNetObj.IsSpawned)
+            {
+                MoverIngredienteServerRpc(
+                    origenNetObj.NetworkObjectId,
+                    destinoNetObj.NetworkObjectId
+                );
+            }
+            else if (mostrarDebug)
+            {
+                Debug.LogWarning("No se pudo mover: nodos sin NetworkObject válido");
+            }
         }
     }
 
+    /// <summary>
+    /// Server RPC para mover un ingrediente entre nodos
+    /// </summary>
     [ServerRpc(RequireOwnership = false)]
     private void MoverIngredienteServerRpc(ulong origenId, ulong destinoId)
     {
-        // Similar a la implementación en EfectoPicanteManager
-        // Encontrar objetos por NetworkObjectId
-        NetworkObject origenObj = null;
-        NetworkObject destinoObj = null;
-
-        if (!NetworkManager.Singleton.SpawnManager.SpawnedObjects.TryGetValue(origenId, out origenObj))
+        // Verificar que el NetworkManager existe
+        if (NetworkManager.Singleton == null || NetworkManager.Singleton.SpawnManager == null)
         {
-            Debug.LogError($"No se encontró objeto de red con ID {origenId}");
+            Debug.LogError("NetworkManager o SpawnManager no disponibles");
             return;
         }
 
-        if (!NetworkManager.Singleton.SpawnManager.SpawnedObjects.TryGetValue(destinoId, out destinoObj))
+        // Encontrar objetos por NetworkObjectId
+        if (!NetworkManager.Singleton.SpawnManager.SpawnedObjects.TryGetValue(origenId, out NetworkObject origenObj) ||
+            !NetworkManager.Singleton.SpawnManager.SpawnedObjects.TryGetValue(destinoId, out NetworkObject destinoObj))
         {
-            Debug.LogError($"No se encontró objeto de red con ID {destinoId}");
+            Debug.LogError($"No se encontraron objetos con IDs {origenId} o {destinoId}");
             return;
         }
 
@@ -306,78 +398,129 @@ public class EfectoEspecialManager : NetworkBehaviour, IEfectoManager
             return;
         }
 
-        // Si el nodo destino ya tiene ingrediente, no hacer nada
-        if (nodoDestino.hasIngredient.Value)
+        // Verificar condiciones para el movimiento
+        if (!nodoOrigen.hasIngredient.Value || nodoDestino.hasIngredient.Value)
         {
+            if (mostrarDebug)
+            {
+                Debug.LogWarning("Condiciones inválidas para mover: origen sin ingrediente o destino ocupado");
+            }
             return;
         }
 
-        // Verificar que el nodo origen tenga ingrediente
-        if (!nodoOrigen.hasIngredient.Value || nodoOrigen.currentIngredient == null)
-        {
-            return;
-        }
-
-        // Mover ingrediente en el servidor
+        // Obtener referencia al ingrediente
         GameObject ingrediente = nodoOrigen.currentIngredient;
+        if (ingrediente == null)
+        {
+            Debug.LogError("Nodo origen no tiene ingrediente válido");
+            return;
+        }
 
-        // 1. Limpiar nodo origen
-        nodoOrigen.hasIngredient.Value = false;
-        nodoOrigen.currentIngredient = null;
+        // Verificar que el ingrediente tiene NetworkObject
+        NetworkObject ingredienteNetObj = ingrediente.GetComponent<NetworkObject>();
+        if (ingredienteNetObj == null || !ingredienteNetObj.IsSpawned)
+        {
+            Debug.LogError("El ingrediente no tiene NetworkObject válido");
+            return;
+        }
 
-        // 2. Mover el ingrediente físicamente
-        ingrediente.transform.position = nodoDestino.transform.position;
+        // 1. Obtener datos del ingrediente para recreación
+        componente comp = ingrediente.GetComponent<componente>();
+        if (comp == null || comp.data == null || comp.data.prefab3D == null)
+        {
+            Debug.LogError("No se pueden obtener datos del ingrediente para recrearlo");
+            return;
+        }
 
-        // 3. Actualizar nodo destino
-        nodoDestino.hasIngredient.Value = true;
-        nodoDestino.currentIngredient = ingrediente;
+        GameObject prefabIngrediente = comp.data.prefab3D;
+
+        // 2. Limpiar nodo origen
+        nodoOrigen.ClearNodeIngredient();
+
+        // 3. Colocar ingrediente en destino
+        nodoDestino.SetNodeIngredient(prefabIngrediente);
 
         // 4. Notificar a todos los clientes
         MoverIngredienteClientRpc(
             origenId,
             destinoId,
-            ingrediente.GetComponent<NetworkObject>().NetworkObjectId
+            ingredienteNetObj.NetworkObjectId
         );
 
-        // 5. Reproducir efectos de sonido o visuales
+        // 5. Mostrar efecto visual
         MostrarEfectoMovimientoClientRpc(
             nodoOrigen.transform.position,
             nodoDestino.transform.position
         );
+
+        if (mostrarDebug)
+        {
+            Debug.Log($"Ingrediente movido exitosamente de {nodoOrigen.position} a {nodoDestino.position}");
+        }
     }
 
+    /// <summary>
+    /// Client RPC para sincronizar el movimiento en todos los clientes
+    /// </summary>
     [ClientRpc]
     private void MoverIngredienteClientRpc(ulong origenId, ulong destinoId, ulong ingredienteId)
     {
         // Solo ejecutar en clientes (no en servidor)
         if (IsServer) return;
 
+        if (mostrarDebug)
+        {
+            Debug.Log($"Cliente: Sincronizando movimiento de ingrediente {ingredienteId}");
+        }
+
         // Encontrar objetos por ID
         NetworkObject origenObj = null;
         NetworkObject destinoObj = null;
         NetworkObject ingredienteObj = null;
 
-        NetworkManager.Singleton.SpawnManager.SpawnedObjects.TryGetValue(origenId, out origenObj);
-        NetworkManager.Singleton.SpawnManager.SpawnedObjects.TryGetValue(destinoId, out destinoObj);
-        NetworkManager.Singleton.SpawnManager.SpawnedObjects.TryGetValue(ingredienteId, out ingredienteObj);
+        bool origenEncontrado = NetworkManager.Singleton.SpawnManager.SpawnedObjects.TryGetValue(origenId, out origenObj);
+        bool destinoEncontrado = NetworkManager.Singleton.SpawnManager.SpawnedObjects.TryGetValue(destinoId, out destinoObj);
+        bool ingredienteEncontrado = NetworkManager.Singleton.SpawnManager.SpawnedObjects.TryGetValue(ingredienteId, out ingredienteObj);
 
-        if (origenObj == null || destinoObj == null || ingredienteObj == null) return;
+        if (!origenEncontrado || !destinoEncontrado)
+        {
+            Debug.LogWarning($"Cliente: No se pudieron encontrar los nodos. Origen: {origenEncontrado}, Destino: {destinoEncontrado}");
+            return;
+        }
 
         Node nodoOrigen = origenObj.GetComponent<Node>();
         Node nodoDestino = destinoObj.GetComponent<Node>();
 
-        if (nodoOrigen == null || nodoDestino == null) return;
+        if (nodoOrigen == null || nodoDestino == null)
+        {
+            Debug.LogWarning("Cliente: Los nodos no tienen componente Node");
+            return;
+        }
 
-        // Actualizar referencias en clientes
-        nodoDestino.currentIngredient = ingredienteObj.gameObject;
-        nodoOrigen.currentIngredient = null;
+        // Si el ingrediente aún existe, actualizamos la referencia
+        if (ingredienteEncontrado && ingredienteObj != null)
+        {
+            nodoDestino.currentIngredient = ingredienteObj.gameObject;
+            nodoOrigen.currentIngredient = null;
+        }
+        else
+        {
+            // Si no encontramos el ingrediente, es porque ya fue recreado por SetNodeIngredient
+            if (mostrarDebug)
+            {
+                Debug.Log("Cliente: Ingrediente ya fue recreado por el servidor");
+            }
+        }
     }
 
+    /// <summary>
+    /// Client RPC para mostrar efectos visuales del movimiento
+    /// </summary>
     [ClientRpc]
     private void MostrarEfectoMovimientoClientRpc(Vector3 posOrigen, Vector3 posDestino)
     {
         // Crear un efecto visual de movimiento
-        GameObject efecto = new GameObject("EfectoMovimiento");
+        GameObject efecto = new GameObject("EfectoMovimientoEspecial");
         LineRenderer linea = efecto.AddComponent<LineRenderer>();
         linea.startWidth = 0.1f;
         linea.endWidth = 0.1f;
@@ -385,7 +528,7 @@ public class EfectoEspecialManager : NetworkBehaviour, IEfectoManager
         linea.SetPosition(0, posOrigen + Vector3.up * 0.5f);
         linea.SetPosition(1, posDestino + Vector3.up * 0.5f);
 
-        // Usar colores especiales
+        // Usar colores azules para el efecto especial
         linea.startColor = new Color(0f, 0.5f, 1f); // Azul claro
         linea.endColor = new Color(0f, 0f, 1f);     // Azul oscuro
 
@@ -396,7 +539,9 @@ public class EfectoEspecialManager : NetworkBehaviour, IEfectoManager
         Destroy(efecto, 0.5f);
     }
 
-    // Método llamado cada turno
+    /// <summary>
+    /// Método llamado cada turno para ejecutar el efecto
+    /// </summary>
     public void ProcesarTurno()
     {
         if (!IsServer) return;
@@ -404,21 +549,66 @@ public class EfectoEspecialManager : NetworkBehaviour, IEfectoManager
         // Reducir duración
         duracionRestante--;
 
-        // Ejecutar empujes para este turno
-        EmpujarIngredientes();
+        if (mostrarDebug)
+        {
+            Debug.Log($"Procesando turno de efecto especial. Turnos restantes: {duracionRestante}");
+        }
 
-        // Si es el último turno, limpiar
+        // Ejecutar empujes para este turno
+        IniciarEmpujesServerRpc();
+
+        // Si es el último turno, finalizar efecto
         if (duracionRestante <= 0)
         {
+            if (mostrarDebug)
+            {
+                Debug.Log("Último turno completado. Finalizando efecto especial.");
+            }
             LimpiarEfecto();
         }
     }
 
-    
+    /// <summary>
+    /// Limpia el efecto y los recursos asociados
+    /// </summary>
+    public void LimpiarEfecto()
+    {
+        if (mostrarDebug)
+        {
+            Debug.Log("EfectoEspecialManager: LimpiarEfecto llamado");
+        }
 
+        // Detener coroutine si está en ejecución
+        if (rutinaEmpujes != null)
+        {
+            StopCoroutine(rutinaEmpujes);
+            rutinaEmpujes = null;
+        }
+
+        // Desactivar estado de ejecución
+        efectoActivo.Value = false;
+
+        if (IsServer)
+        {
+            // Notificar a los clientes
+            LimpiarEfectoClientRpc();
+
+            // Programar destrucción
+            StartCoroutine(DestroyAfterDelay(0.5f));
+        }
+    }
+
+    /// <summary>
+    /// Client RPC para limpiar efectos en clientes
+    /// </summary>
     [ClientRpc]
     private void LimpiarEfectoClientRpc()
     {
+        if (mostrarDebug)
+        {
+            Debug.Log("Cliente: Limpiando efecto especial");
+        }
+
         // Detener efectos visuales
         if (particulas != null)
         {
@@ -426,14 +616,36 @@ public class EfectoEspecialManager : NetworkBehaviour, IEfectoManager
         }
     }
 
-    private IEnumerator DestruirDespuesDeDelay(float delay)
+    /// <summary>
+    /// Destruye el manager después de un retraso
+    /// </summary>
+    private IEnumerator DestroyAfterDelay(float delay)
     {
         yield return new WaitForSeconds(delay);
 
-        // Si es el servidor, despawneamos el objeto
-        if (IsServer && gameObject.TryGetComponent<NetworkObject>(out var netObj) && netObj.IsSpawned)
+        if (IsSpawned && GetComponent<NetworkObject>() != null)
         {
-            netObj.Despawn();
+            GetComponent<NetworkObject>().Despawn(true);
+        }
+        else if (gameObject != null)
+        {
+            Destroy(gameObject);
+        }
+    }
+
+    private void OnDestroy()
+    {
+        // Asegurar limpieza adecuada
+        if (rutinaEmpujes != null)
+        {
+            StopCoroutine(rutinaEmpujes);
+        }
+
+        // Detener particulas
+        if (particulas != null)
+        {
+            particulas.Stop(true);
+            Destroy(particulas.gameObject);
         }
     }
 }

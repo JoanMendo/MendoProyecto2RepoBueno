@@ -306,7 +306,7 @@ public class TurnManager : NetworkBehaviour
             Debug.LogWarning("[TurnManager] No se puede forzar avance de fase - No es el servidor");
         }
     }
-    
+
     private void ExecutarAccionesFase()
     {
         Debug.Log("[TurnManager] Ejecutando acciones de la fase actual");
@@ -330,20 +330,49 @@ public class TurnManager : NetworkBehaviour
         // Esperar un tiempo breve para que los efectos de ingredientes se procesen
         yield return new WaitForSeconds(0.5f);
 
-        // 2. Ejecutar todos los efectos programados (NUEVO)
+        // 2. Ejecutar todos los efectos programados
         if (EfectosProgramados.Instance != null)
         {
             Debug.Log("[TurnManager] Ejecutando efectos programados");
+
+            // Suscribirse al evento de finalización
+            EfectosProgramados.Instance.OnEjecucionCompletada += OnEfectosEjecutados;
+
+            // Iniciar ejecución de efectos programados
             EfectosProgramados.Instance.EjecutarEfectosProgramados();
 
-            // Esperar un tiempo para que los efectos se visualicen
-            yield return new WaitForSeconds(1.0f);
+            Debug.Log("[TurnManager] Ejecución de efectos iniciada, esperando finalización...");
+
+            // No continuamos aquí, el flujo se reanuda en OnEfectosEjecutados
         }
         else
         {
             Debug.LogWarning("[TurnManager] No se encontró instancia de EfectosProgramados");
+
+            // Si no hay instancia, continuar con los utensilios después de un breve retraso
+            yield return new WaitForSeconds(1.0f);
+            EjecutarUtensiliosProgramados();
+        }
+    }
+
+    // Método que se llama cuando terminan los efectos
+    private void OnEfectosEjecutados()
+    {
+        Debug.Log("[TurnManager] Efectos ejecutados completamente");
+
+        // Desuscribirse para evitar múltiples llamadas
+        if (EfectosProgramados.Instance != null)
+        {
+            EfectosProgramados.Instance.OnEjecucionCompletada -= OnEfectosEjecutados;
         }
 
+        // Continuar con la ejecución de utensilios
+        EjecutarUtensiliosProgramados();
+    }
+
+    // Método para ejecutar los utensilios programados
+    private void EjecutarUtensiliosProgramados()
+    {
         // 3. Luego ejecutar todos los utensilios programados
         if (UtensiliosProgramados.Instance != null)
         {
@@ -356,14 +385,15 @@ public class TurnManager : NetworkBehaviour
             UtensiliosProgramados.Instance.EjecutarUtensiliosProgramados();
 
             Debug.Log("[TurnManager] Ejecución de utensilios iniciada, esperando finalización...");
+
+            // No continuamos aquí, el flujo se reanuda en OnEjecucionUtensiliosCompletada
         }
         else
         {
             Debug.LogWarning("[TurnManager] No se encontró instancia de UtensiliosProgramados");
 
             // Si no hay instancia, avanzar después de un breve retraso
-            yield return new WaitForSeconds(1.0f);
-            AvanzarAutomaticamente();
+            StartCoroutine(AvanzarDespuesDeRetraso(1.0f));
         }
     }
 
@@ -394,6 +424,18 @@ public class TurnManager : NetworkBehaviour
 
         Debug.Log("[TurnManager] Avanzando automáticamente después de completar acciones");
         AvanzarFase();
+    }
+
+    // Método auxiliar para activar efectos con callback
+    private IEnumerator ActivarEfectosConCallback(NodeMap tablero, System.Action callback)
+    {
+        tablero.ActivarTodosLosEfectos();
+
+        // Esperar un breve momento para asegurar que los efectos se activen
+        yield return new WaitForSeconds(0.3f);
+
+        // Llamar al callback
+        callback?.Invoke();
     }
 
     public override void OnDestroy()

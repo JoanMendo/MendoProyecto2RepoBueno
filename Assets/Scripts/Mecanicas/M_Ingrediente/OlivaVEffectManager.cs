@@ -3,71 +3,96 @@ using System.Collections.Generic;
 using Unity.Netcode;
 using UnityEngine;
 
+/// <summary>
+/// Manager for handling Oliva_V effects, which decrease the range of neighboring ingredients.
+/// </summary>
 public class OlivaVEffectManager : NetworkBehaviour, IEffectManager
 {
+    // List of affected ingredients
     private List<GameObject> ingredientesAfectados = new List<GameObject>();
+
+    // Network synchronized variable for the range reduction amount
     private NetworkVariable<int> cantidadReduccion = new NetworkVariable<int>(1);
+
+    // List of NetworkObjectIds for tracking
     private List<ulong> networkIds = new List<ulong>();
+
+    // State tracking
     private bool efectoAplicado = false;
+
+    // Reference to the configured ingredient
     private IngredientesSO _ingredienteConfigurado;
 
-    // Implementación de ConfigurarConIngrediente de IEffectManager
+    // Debug flag
+    [SerializeField] private bool mostrarDebug = false;
+
+    /// <summary>
+    /// Configures the manager with the ingredient data
+    /// </summary>
     public void ConfigurarConIngrediente(IngredientesSO ingrediente)
     {
         _ingredienteConfigurado = ingrediente;
-        Debug.Log($"OlivaVEffectManager configurado con: {ingrediente.name}");
 
-        // Si el ingrediente es Oliva_V, podemos obtener la reducción de rango directamente
+        if (mostrarDebug)
+        {
+            Debug.Log($"OlivaVEffectManager configurado con: {ingrediente.name}");
+        }
+
+        // If the ingredient is Oliva_V, we can get the range reduction directly
         if (ingrediente is Oliva_V olivaV)
         {
             cantidadReduccion.Value = olivaV.reduccionRango;
         }
     }
 
-    // Implementación de IniciarEfecto de IEffectManager
+    /// <summary>
+    /// Starts the effect on the specified nodes
+    /// </summary>
     public void IniciarEfecto(GameObject nodoOrigen, List<GameObject> nodosAfectados)
     {
-        // Obtener la reducción de rango del ingrediente configurado, o usar valor por defecto
+        // Get the range reduction from the configured ingredient, or use default value
         int reduccionRango = 1;
 
-        // Si tenemos la referencia al ingrediente específico, usar su valor
+        // If we have a reference to the specific ingredient, use its value
         if (_ingredienteConfigurado is Oliva_V olivaV)
         {
             reduccionRango = olivaV.reduccionRango;
         }
 
-        // Delegar al método específico
+        // Delegate to the specific method
         IniciarEfectoOlivaV(nodoOrigen, nodosAfectados, reduccionRango);
     }
 
-    /// ‡‡‡‡<summary>_PLACEHOLDER‡‡_PLACEHOLDER‡‡
-    /// Inicia el efecto de reducción de rango en los ingredientes adyacentes
-    /// ‡‡‡‡</summary>_PLACEHOLDER‡‡_PLACEHOLDER‡‡
+    /// <summary>
+    /// Starts the range reduction effect on adjacent ingredients
+    /// </summary>
     public void IniciarEfectoOlivaV(GameObject nodoOrigen, List<GameObject> nodosAfectados, int reduccionRango)
     {
-        // Convertirse en objeto de red para poder usar RPC
+        // Make sure we have a NetworkObject and it's spawned
         if (!IsSpawned && GetComponent<NetworkObject>() != null)
         {
             GetComponent<NetworkObject>().Spawn();
         }
 
-        // Configurar cantidad de reducción
+        // Configure amount of reduction
         cantidadReduccion.Value = reduccionRango;
 
-        // Limpiar listas previas (por si se reutiliza el manager)
+        // Clear previous lists (in case the manager is reused)
         ingredientesAfectados.Clear();
         networkIds.Clear();
 
-        // Recolectar ingredientes e IDs de red
+        // Collect ingredients and network IDs
         foreach (var nodoVecino in nodosAfectados)
         {
+            if (nodoVecino == null) continue;
+
             Node nodo = nodoVecino.GetComponent<Node>();
             if (nodo == null || !nodo.hasIngredient.Value || nodo.currentIngredient == null)
                 continue;
 
             ingredientesAfectados.Add(nodo.currentIngredient);
 
-            // Obtener NetworkObjectId de cada ingrediente afectado
+            // Get NetworkObjectId of each affected ingredient
             NetworkObject netObj = nodo.currentIngredient.GetComponent<NetworkObject>();
             if (netObj != null && netObj.IsSpawned)
             {
@@ -75,20 +100,30 @@ public class OlivaVEffectManager : NetworkBehaviour, IEffectManager
             }
         }
 
-        // Si no hay ingredientes afectados, terminar
+        // If there are no affected ingredients, finish
         if (ingredientesAfectados.Count == 0)
         {
-            Debug.Log("No hay ingredientes afectados por Oliva_V");
+            if (mostrarDebug)
+            {
+                Debug.Log("No hay ingredientes afectados por Oliva_V");
+            }
+
             FinalizarEfecto();
             return;
         }
 
-        // Iniciar efecto en el servidor
+        // Start the effect on the server
         AplicarEfectoServerRpc(networkIds.ToArray(), cantidadReduccion.Value);
 
-        Debug.Log($"Efecto Oliva_V iniciado en {ingredientesAfectados.Count} ingredientes con reducción de {cantidadReduccion.Value}");
+        if (mostrarDebug)
+        {
+            Debug.Log($"Efecto Oliva_V iniciado en {ingredientesAfectados.Count} ingredientes con reducción de {cantidadReduccion.Value}");
+        }
     }
 
+    /// <summary>
+    /// Server RPC to apply the effect to all targets
+    /// </summary>
     [ServerRpc(RequireOwnership = false)]
     private void AplicarEfectoServerRpc(ulong[] objetivosIds, int reduccion)
     {
@@ -96,29 +131,34 @@ public class OlivaVEffectManager : NetworkBehaviour, IEffectManager
 
         foreach (ulong id in objetivosIds)
         {
-            // Preparar clientes primero
+            // Prepare clients first
             PrepararObjetivoClientRpc(id);
 
-            // Localizar objeto objetivo
+            // Find target object
             if (!NetworkManager.Singleton.SpawnManager.SpawnedObjects.TryGetValue(id, out NetworkObject objetivoNetObj))
                 continue;
 
-            // Usar coroutine para dar tiempo a la sincronización
+            // Use coroutine to give time for synchronization
             StartCoroutine(AplicarEfectoConDelay(objetivoNetObj.gameObject, reduccion, id));
         }
     }
 
+    /// <summary>
+    /// Applies the effect with a delay to ensure synchronization
+    /// </summary>
     private IEnumerator AplicarEfectoConDelay(GameObject objetivo, int reduccion, ulong id)
     {
         yield return new WaitForSeconds(0.1f);
 
-        // Aplicar modificador
+        if (objetivo == null) yield break;
+
+        // Get or add the ModificadorRecurso component
         ModificadorRecurso mod = objetivo.GetComponent<ModificadorRecurso>();
         if (mod == null)
         {
             mod = objetivo.AddComponent<ModificadorRecurso>();
 
-            // Asignar recurso base
+            // Assign base resource
             componente ingrediente = objetivo.GetComponent<componente>();
             if (ingrediente != null && ingrediente.data != null)
             {
@@ -126,31 +166,37 @@ public class OlivaVEffectManager : NetworkBehaviour, IEffectManager
             }
         }
 
-        // Modificar directamente la variable de red en lugar de usar ServerRpc
+        // Directly modify the network variable instead of using ServerRpc
         int rangoAntes = mod.GetRangoActual();
-        mod.modificacionRango.Value -= reduccion;
+        mod.DisminuirRango(reduccion);
         int rangoDespues = mod.GetRangoActual();
 
-        Debug.Log($"Oliva_V: Reducido rango de {objetivo.name}. Rango: {rangoAntes} -> {rangoDespues} (-{reduccion})");
+        if (mostrarDebug)
+        {
+            Debug.Log($"Oliva_V: Reducido rango de {objetivo.name}. Rango: {rangoAntes} -> {rangoDespues} (-{reduccion})");
+        }
 
-        // Notificar al cliente individualmente
+        // Notify the client individually
         AplicarEfectoASingleObjetivoClientRpc(id, reduccion);
     }
 
+    /// <summary>
+    /// Prepares clients to receive the effect by ensuring the ModificadorRecurso component exists
+    /// </summary>
     [ClientRpc]
     private void PrepararObjetivoClientRpc(ulong id)
     {
-        // Localizar objeto objetivo en el cliente
+        // Locate the target object on the client
         if (!NetworkManager.Singleton.SpawnManager.SpawnedObjects.TryGetValue(id, out NetworkObject objetivoNetObj))
             return;
 
-        // Verificamos si ya existe el ModificadorRecurso en el cliente
+        // Check if the ModificadorRecurso component already exists on the client
         ModificadorRecurso mod = objetivoNetObj.gameObject.GetComponent<ModificadorRecurso>();
         if (mod == null)
         {
             mod = objetivoNetObj.gameObject.AddComponent<ModificadorRecurso>();
 
-            // Obtener recurso del componente
+            // Get the resource from the component
             componente comp = objetivoNetObj.gameObject.GetComponent<componente>();
             if (comp != null && comp.data != null)
             {
@@ -158,31 +204,47 @@ public class OlivaVEffectManager : NetworkBehaviour, IEffectManager
             }
         }
 
-        Debug.Log($"[CLIENTE] Preparado objeto {objetivoNetObj.name} para recibir efecto Oliva_V");
+        if (mostrarDebug)
+        {
+            Debug.Log($"[CLIENTE] Preparado objeto {objetivoNetObj.name} para recibir efecto Oliva_V");
+        }
     }
 
+    /// <summary>
+    /// Notifies a client that an effect has been applied to a specific object
+    /// </summary>
     [ClientRpc]
     private void AplicarEfectoASingleObjetivoClientRpc(ulong id, int reduccion)
     {
         if (!NetworkManager.Singleton.SpawnManager.SpawnedObjects.TryGetValue(id, out NetworkObject objetivoNetObj))
             return;
 
-        Debug.Log($"[CLIENTE] Efecto Oliva_V aplicado a {objetivoNetObj.name}, reducción: {reduccion}");
+        if (mostrarDebug)
+        {
+            Debug.Log($"[CLIENTE] Efecto Oliva_V aplicado a {objetivoNetObj.name}, reducción: {reduccion}");
+        }
     }
 
+    /// <summary>
+    /// Notifies all clients that effects have been applied
+    /// </summary>
     [ClientRpc]
     private void AplicarEfectoClientRpc(ulong[] objetivosIds, int reduccion)
     {
-        Debug.Log($"Efecto Oliva_V aplicado a {objetivosIds.Length} ingredientes con reducción de rango de {reduccion}");
-
-        // Aquí podrías añadir efectos visuales adicionales
+        if (mostrarDebug)
+        {
+            Debug.Log($"Efecto Oliva_V aplicado a {objetivosIds.Length} ingredientes con reducción de rango de {reduccion}");
+        }
     }
 
+    /// <summary>
+    /// Finalizes the effect when no ingredients are affected
+    /// </summary>
     private void FinalizarEfecto()
     {
         if (!efectoAplicado)
         {
-            // Destruir este gestor si no se aplicó ningún efecto
+            // Destroy this manager if no effect was applied
             if (IsSpawned && GetComponent<NetworkObject>() != null)
             {
                 GetComponent<NetworkObject>().Despawn(true);
@@ -192,45 +254,62 @@ public class OlivaVEffectManager : NetworkBehaviour, IEffectManager
                 Destroy(gameObject);
             }
         }
-        // Si se aplicó el efecto, permanece activo para mantener la reducción de rango
-        // Se destruirá al final del juego o cuando otro sistema lo determine
     }
 
-    // Implementación de LimpiarEfecto de IEffectManager
+    /// <summary>
+    /// Cleans up the effect and all associated resources
+    /// </summary>
     public void LimpiarEfecto()
     {
-        Debug.Log("OlivaVEffectManager: LimpiarEfecto llamado");
-        if (IsSpawned)
+        if (mostrarDebug)
         {
+            Debug.Log("OlivaVEffectManager: LimpiarEfecto llamado");
+        }
+
+        if (IsServer)
+        {
+            // If we want to revert effects when cleaning up, we would do it here
+            // But for Oliva_V, the range reduction typically remains until countered by another effect
+
             LimpiarEfectoServerRpc();
         }
     }
 
+    /// <summary>
+    /// Server RPC to clean up the effect
+    /// </summary>
     [ServerRpc(RequireOwnership = false)]
     private void LimpiarEfectoServerRpc()
     {
-        // Aquí podrías revertir los efectos si es necesario (añadir el rango eliminado)
-
-        // Notificar a los clientes y eliminar el objeto
+        // Notify clients and destroy the object
         LimpiarEfectoClientRpc();
 
-        // Auto-destrucción después de un pequeño retraso
+        // Self-destruct after a small delay
         StartCoroutine(DestroyAfterDelay(0.2f));
     }
 
+    /// <summary>
+    /// Client RPC to clean up the effect
+    /// </summary>
     [ClientRpc]
     private void LimpiarEfectoClientRpc()
     {
-        Debug.Log("Limpiando efecto Oliva_V");
+        if (mostrarDebug)
+        {
+            Debug.Log("Limpiando efecto Oliva_V");
+        }
     }
 
+    /// <summary>
+    /// Destroys the manager after a delay
+    /// </summary>
     private IEnumerator DestroyAfterDelay(float delay)
     {
         yield return new WaitForSeconds(delay);
 
         if (IsSpawned && GetComponent<NetworkObject>() != null)
         {
-            GetComponent<NetworkObject>().Despawn(true); // true para destruir el objeto en todos los clientes
+            GetComponent<NetworkObject>().Despawn(true); // true to destroy the object on all clients
         }
         else if (gameObject != null)
         {

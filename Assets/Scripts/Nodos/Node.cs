@@ -1,6 +1,7 @@
 ﻿using Unity.Netcode;
 using System.Collections.Generic;
 using UnityEngine;
+using System.Linq;
 
 public class Node : NetworkBehaviour, IInteractuable
 {
@@ -31,6 +32,9 @@ public class Node : NetworkBehaviour, IInteractuable
     // Materiales para estados visuales
     private Material materialNormal;
     private Material materialResaltado;
+
+    // Lista de efectos asociados con este nodo
+    private List<Efectos> efectosAsociados = new List<Efectos>();
 
     // Propiedades para modificaciones
     private NetworkVariable<int> modificacionRango = new NetworkVariable<int>(0);
@@ -90,6 +94,61 @@ public class Node : NetworkBehaviour, IInteractuable
     public void Interactuar()
     {
         Debug.Log($"[Node {position}] Inicia Interactuar()");
+
+        bool esNodoPropio = (nodeMap.ownerClientId == NetworkManager.Singleton.LocalClientId);
+
+        // Si estamos en modo selección de enemigo, derivar a esa lógica
+        if (!esNodoPropio && LocalGameManager.Instance.modoSeleccionEnemigo)
+        {
+            // Procesar como interacción con tablero enemigo
+            if (LocalGameManager.Instance.currentEfecto != null)
+            {
+                LocalGameManager.Instance.ProcesarSeleccionNodoParaEfectoOponente(gameObject);
+                return;
+            }
+
+            if (LocalGameManager.Instance.currentUtensilio != null)
+            {
+                LocalGameManager.Instance.ProcesarSeleccionNodoParaUtensilioOponente(gameObject);
+                return;
+            }
+
+            // Si no hay efecto o utensilio seleccionado, desactivar modo enemigo
+            LocalGameManager.Instance.DesactivarModoEnemigo();
+            return;
+        }
+
+        // Si no es nodo propio y no estamos en modo enemigo, ignorar interacción
+        if (!esNodoPropio && !LocalGameManager.Instance.modoSeleccionEnemigo)
+        {
+            Debug.Log($"[Node {position}] Este nodo pertenece a otro jugador. Active el modo enemigo para interactuar.");
+            return;
+        }
+
+        // Check if this is an opponent's node
+        bool isOpponentNode = nodeMap.ownerClientId != NetworkManager.Singleton.LocalClientId;
+
+        if (isOpponentNode)
+        {
+            // Only allow specific interactions on opponent's board
+            if (LocalGameManager.Instance.currentEfecto != null)
+            {
+               
+                LocalGameManager.Instance.ProcesarSeleccionNodoParaEfectoOponente(gameObject);
+                return;
+            }
+
+            if (LocalGameManager.Instance.currentUtensilio != null)
+            {
+                // Process cross-board utensil
+                LocalGameManager.Instance.ProcesarSeleccionNodoParaUtensilioOponente(gameObject);
+                return;
+            }
+
+            // Not allowed to place ingredients on opponent's board
+            Debug.Log("No puedes colocar ingredientes en el tablero del oponente");
+            return;
+        }
 
         // Verificar autoridad
         Debug.Log($"[Node {position}] Verificando autoridad: IsOwner={IsOwner}, IsServer={IsServer}");
@@ -441,7 +500,7 @@ public class Node : NetworkBehaviour, IInteractuable
     {
         if (currentIngredient == null) return false;
 
-        ResourcesSO recurso = currentIngredient.GetComponent<ResourcesSO>();
+        ResourcesSO recurso = currentIngredient.GetComponent<componente>().data;
         if (recurso == null) return false;
 
         return recurso.esmovible && esMovible.Value;
@@ -594,5 +653,56 @@ public class Node : NetworkBehaviour, IInteractuable
             // Destruir después de tiempo
             Destroy(efectoVisual, 2.0f);
         }
+    }
+    /// <summary>
+    /// Marca este nodo con un efecto visual para indicar que tiene un efecto asociado
+    /// </summary>
+    public void MarcarConEfecto(Efectos efecto)
+    {
+        if (efecto == null) return;
+
+        // Guardar referencia al efecto
+        if (!efectosAsociados.Contains(efecto))
+        {
+            efectosAsociados.Add(efecto);
+        }
+
+        // Aplicar algún efecto visual
+        // Podría ser un cambio de color, una partícula, etc.
+        // Por ejemplo:
+        if (efecto is S_Picante)
+        {
+            // Efecto picante: color rojo
+            if (meshRenderer != null)
+            {
+                Material mat = meshRenderer.material;
+                mat.SetColor("_EmissionColor", Color.red * 0.3f);
+                mat.EnableKeyword("_EMISSION");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Elimina un efecto asociado a este nodo
+    /// </summary>
+    public void EliminarEfecto(Efectos efecto)
+    {
+        if (efecto == null) return;
+
+        efectosAsociados.Remove(efecto);
+
+        // Si no quedan efectos, restaurar apariencia normal
+        if (efectosAsociados.Count == 0 && meshRenderer != null)
+        {
+            meshRenderer.material.DisableKeyword("_EMISSION");
+        }
+    }
+
+    /// <summary>
+    /// Verifica si este nodo tiene un efecto específico
+    /// </summary>
+    public bool TieneEfecto(System.Type tipoEfecto)
+    {
+        return efectosAsociados.Any(e => e.GetType() == tipoEfecto);
     }
 }

@@ -1,9 +1,21 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using Unity.Netcode;
 
 public class UtensiliosProgramados : MonoBehaviour
 {
+    [System.Serializable]
+    public class UtensilioProgramado
+    {
+        public Utensilio utensilio;
+        public List<GameObject> nodos = new List<GameObject>();
+        public bool ejecutado = false;
+
+        // Nuevo campo para rastrear si el utensilio es en tablero enemigo
+        public bool esUtensilioEnemigo = false;
+    }
+
     public static UtensiliosProgramados Instance { get; private set; }
 
     [Header("Configuración")]
@@ -11,9 +23,9 @@ public class UtensiliosProgramados : MonoBehaviour
     [SerializeField] private bool ejecutarAutomaticamente = false;
     [SerializeField] private bool mostrarDebug = true;
 
+
     // Lista de utensilios y nodos programados
-    private List<Utensilio> utensiliosProgramados = new List<Utensilio>();
-    private List<List<GameObject>> nodosPorUtensilio = new List<List<GameObject>>();
+    private List<UtensilioProgramado> utensiliosProgramados = new List<UtensilioProgramado>();
 
     // Estado de ejecución
     private bool ejecutandoActualmente = false;
@@ -32,9 +44,9 @@ public class UtensiliosProgramados : MonoBehaviour
         Instance = this;
     }
 
-    /// ‡‡<summary>_PLACEHOLDER‡‡
+    /// <summary>
     /// Añade un utensilio a la cola de programación
-    /// ‡‡</summary>_PLACEHOLDER‡‡
+    /// </summary>
     public bool ProgramarUtensilio(Utensilio utensilio, List<GameObject> nodos)
     {
         // Verificar que no estamos en medio de una ejecución
@@ -58,6 +70,30 @@ public class UtensiliosProgramados : MonoBehaviour
             return false;
         }
 
+        // Determinar si los nodos pertenecen a un tablero enemigo
+        bool esTableroEnemigo = false;
+        ulong clienteLocal = NetworkManager.Singleton.LocalClientId;
+        NodeMap mapaEnemigo = null;
+
+        foreach (GameObject nodo in nodos)
+        {
+            Node nodoComp = nodo.GetComponent<Node>();
+            if (nodoComp != null && nodoComp.nodeMap != null)
+            {
+                if (nodoComp.nodeMap.ownerClientId != clienteLocal)
+                {
+                    esTableroEnemigo = true;
+                    mapaEnemigo = nodoComp.nodeMap;
+                }
+            }
+        }
+
+        // Verificación adicional para utensilios en tablero enemigo
+        if (esTableroEnemigo)
+        {
+            Debug.Log($"Programando utensilio {utensilio.Name} en tablero enemigo");
+        }
+
         // Validar con UtensiliosManager si los nodos son adecuados
         if (UtensiliosManager.Instance != null)
         {
@@ -78,9 +114,16 @@ public class UtensiliosProgramados : MonoBehaviour
             }
         }
 
-        // Añadir a la cola
-        utensiliosProgramados.Add(utensilio);
-        nodosPorUtensilio.Add(new List<GameObject>(nodos));
+        // Añadir a la cola con la nueva propiedad
+        UtensilioProgramado nuevoProgramado = new UtensilioProgramado
+        {
+            utensilio = utensilio,
+            nodos = new List<GameObject>(nodos),
+            ejecutado = false,
+            esUtensilioEnemigo = esTableroEnemigo
+        };
+
+        utensiliosProgramados.Add(nuevoProgramado);
 
         // Marcar nodos visualmente como programados
         foreach (var nodo in nodos)
@@ -94,7 +137,7 @@ public class UtensiliosProgramados : MonoBehaviour
 
         if (mostrarDebug)
         {
-            Debug.Log($"Utensilio {utensilio.Name} programado con {nodos.Count} nodos");
+            Debug.Log($"Utensilio {utensilio.Name} programado con {nodos.Count} nodos. Es en tablero enemigo: {esTableroEnemigo}");
         }
 
         // Iniciar ejecución automática si está configurado
@@ -106,9 +149,9 @@ public class UtensiliosProgramados : MonoBehaviour
         return true;
     }
 
-    /// ‡‡<summary>_PLACEHOLDER‡‡
+    /// <summary>
     /// Ejecuta todos los utensilios programados en secuencia
-    /// ‡‡</summary>_PLACEHOLDER‡‡
+    /// </summary>
     public void EjecutarUtensiliosProgramados()
     {
         if (ejecutandoActualmente)
@@ -127,9 +170,9 @@ public class UtensiliosProgramados : MonoBehaviour
         StartCoroutine(EjecutarSecuencia());
     }
 
-    /// ‡‡<summary>_PLACEHOLDER‡‡
+    /// <summary>
     /// Coroutine para ejecutar los utensilios programados en secuencia
-    /// ‡‡</summary>_PLACEHOLDER‡‡
+    /// </summary>
     private IEnumerator EjecutarSecuencia()
     {
         ejecutandoActualmente = true;
@@ -139,10 +182,11 @@ public class UtensiliosProgramados : MonoBehaviour
             Debug.Log($"Iniciando ejecución de {utensiliosProgramados.Count} utensilios programados");
         }
 
-        for (int i = 0; i < utensiliosProgramados.Count; i++)
+        foreach (var utensilioProgramado in utensiliosProgramados)
         {
-            Utensilio utensilio = utensiliosProgramados[i];
-            List<GameObject> nodos = nodosPorUtensilio[i];
+            Utensilio utensilio = utensilioProgramado.utensilio;
+            List<GameObject> nodos = utensilioProgramado.nodos;
+            bool esEnemigoUtensilio = utensilioProgramado.esUtensilioEnemigo;
 
             // Desmarcar nodos de programados a ejecutando
             foreach (var nodo in nodos)
@@ -156,12 +200,26 @@ public class UtensiliosProgramados : MonoBehaviour
 
             if (mostrarDebug)
             {
-                Debug.Log($"Ejecutando utensilio {i + 1}/{utensiliosProgramados.Count}: {utensilio.Name}");
+                string mensajeTarget = esEnemigoUtensilio ? "en tablero enemigo" : "en tablero propio";
+                Debug.Log($"Ejecutando utensilio {utensilio.Name} {mensajeTarget}");
+            }
+
+            // Verificar permisos según el propietario del tablero
+            bool tienePermiso = true;
+
+            // Si es utensilio enemigo, verificar permisos especiales
+            if (esEnemigoUtensilio)
+            {
+                // Aquí podrías implementar verificaciones adicionales o restricciones
+                // para utensilios enemigos si fuera necesario
+
+                // Por ahora, permitimos todos los utensilios en tablero enemigo
+                tienePermiso = true;
             }
 
             // Ejecutar acción con UtensiliosManager
             bool exito = false;
-            if (UtensiliosManager.Instance != null)
+            if (tienePermiso && UtensiliosManager.Instance != null)
             {
                 exito = UtensiliosManager.Instance.EjecutarAccionUtensilio(utensilio, nodos);
             }
@@ -187,7 +245,6 @@ public class UtensiliosProgramados : MonoBehaviour
 
         // Limpiar después de ejecutar
         utensiliosProgramados.Clear();
-        nodosPorUtensilio.Clear();
         ejecutandoActualmente = false;
 
         if (mostrarDebug)
@@ -211,10 +268,9 @@ public class UtensiliosProgramados : MonoBehaviour
         }
 
         // Desmarcar todos los nodos
-        for (int i = 0; i < utensiliosProgramados.Count; i++)
+        foreach (var utensilioItem in utensiliosProgramados)
         {
-            List<GameObject> nodos = nodosPorUtensilio[i];
-            foreach (var nodo in nodos)
+            foreach (var nodo in utensilioItem.nodos)
             {
                 Node nodoComp = nodo.GetComponent<Node>();
                 if (nodoComp != null)
@@ -226,7 +282,6 @@ public class UtensiliosProgramados : MonoBehaviour
 
         // Limpiar listas
         utensiliosProgramados.Clear();
-        nodosPorUtensilio.Clear();
 
         if (mostrarDebug)
         {

@@ -4,33 +4,49 @@ using System.Collections.Generic;
 using Unity.Netcode;
 using UnityEngine;
 
+/// <summary>
+/// Component that manages network synchronized modifications to resources like ingredients.
+/// Handles range, life, and movement capability modifications.
+/// </summary>
 public class ModificadorRecurso : NetworkBehaviour
 {
+    // Reference to the base resource being modified
     private ResourcesSO recursoBase;
 
-    // Cola de operaciones pendientes para cuando el objeto esté listo
+    // Queue of operations pending for when the NetworkObject is ready
     private List<Action> operacionesPendientes = new List<Action>();
+
+    // Flag to track if the NetworkObject is ready for variable modifications
     private bool esNetworkObjectListo = false;
 
-    // Variables de red para sincronizar modificaciones
+    // Network synchronized variables for modifications
     public NetworkVariable<int> modificacionRango = new NetworkVariable<int>(0);
     public NetworkVariable<float> modificacionVida = new NetworkVariable<float>(0f);
     public NetworkVariable<bool> esMovible = new NetworkVariable<bool>(true);
 
+    // Debug flag for troubleshooting
+    [SerializeField] private bool mostrarDebug = false;
+
+    /// <summary>
+    /// Sets the base resource this component will modify
+    /// </summary>
     public void SetRecursoBase(ResourcesSO recurso)
     {
         recursoBase = recurso;
-        Debug.Log($"[RANGO] Asignado recurso {(recurso != null ? recurso.Name : "null")} a {gameObject.name}");
-
-        if (recursoBase != null)
+        if (mostrarDebug)
         {
-            Debug.Log($"[RANGO] Verificación: Rango base = {recursoBase.range}, total = {GetRangoActual()}");
+            Debug.Log($"[MODIFICADOR] Asignado recurso {(recurso != null ? recurso.Name : "null")} a {gameObject.name}");
+
+            if (recursoBase != null)
+            {
+                Debug.Log($"[MODIFICADOR] Verificación: Rango base = {recursoBase.range}, total = {GetRangoActual()}");
+            }
         }
     }
 
     private void Awake()
     {
-        // Suscribirse a cambios en las variables de red
+        // Subscribe to network variable changes
         modificacionRango.OnValueChanged += OnRangoModificado;
         modificacionVida.OnValueChanged += OnVidaModificada;
         esMovible.OnValueChanged += OnMovilidadModificada;
@@ -40,14 +56,22 @@ public class ModificadorRecurso : NetworkBehaviour
     {
         base.OnNetworkSpawn();
 
-        // Ahora el NetworkObject está listo para usar NetworkVariables
+        // Now the NetworkObject is ready to use NetworkVariables
         esNetworkObjectListo = true;
-        Debug.Log($"[NETWORK] NetworkObject inicializado para {gameObject.name}");
 
-        // Ejecutar operaciones pendientes
+        if (mostrarDebug)
+        {
+            Debug.Log($"[NETWORK] NetworkObject inicializado para {gameObject.name}");
+        }
+
+        // Execute any pending operations
         if (operacionesPendientes.Count > 0)
         {
-            Debug.Log($"[NETWORK] Ejecutando {operacionesPendientes.Count} operaciones pendientes");
+            if (mostrarDebug)
+            {
+                Debug.Log($"[NETWORK] Ejecutando {operacionesPendientes.Count} operaciones pendientes");
+            }
+
             foreach (var operacion in operacionesPendientes)
             {
                 operacion.Invoke();
@@ -56,127 +80,304 @@ public class ModificadorRecurso : NetworkBehaviour
         }
     }
 
-    // Método para encolar operaciones si el objeto no está listo
+    /// <summary>
+    /// Helper method to execute operations only when the NetworkObject is ready
+    /// </summary>
     private void EjecutarCuandoListo(Action operacion)
     {
-        if (esNetworkObjectListo)
+        // Check if the object is spawned and has network authority
+        if (IsSpawned && (IsServer || IsOwner))
         {
-            operacion.Invoke();
+            if (esNetworkObjectListo)
+            {
+                operacion.Invoke();
+            }
+            else
+            {
+                if (mostrarDebug)
+                {
+                    Debug.Log($"[NETWORK] Encolando operación para {gameObject.name} - NetworkObject aún no listo");
+                }
+                operacionesPendientes.Add(operacion);
+            }
         }
         else
         {
-            Debug.Log($"[NETWORK] Encolando operación para {gameObject.name}");
+            // If we're a client without authority, we need to request the server to make changes
+            if (mostrarDebug)
+            {
+                Debug.Log($"[NETWORK] {gameObject.name} no tiene autoridad para modificar directamente. Usando RPC");
+            }
+
+            // Enqueue for local consistency until we get a server update
             operacionesPendientes.Add(operacion);
         }
     }
 
-    // Método para modificar directamente (sin RPC)
+    // Methods for direct modification (server-only)
+    #region Server Direct Modifications
+
+    /// <summary>
+    /// Increases the range of the resource directly (server only)
+    /// </summary>
     public void AumentarRango(int cantidad)
     {
-        if (!IsServer) return;
+        if (!IsServer)
+        {
+            Debug.LogWarning("[MODIFICADOR] AumentarRango directo llamado desde cliente, ignorando");
+            return;
+        }
+
+        if (mostrarDebug)
+        {
+            Debug.Log($"[MODIFICADOR] Aplicando aumento de rango directo: +{cantidad}");
+        }
 
         modificacionRango.Value += cantidad;
-        Debug.Log($"[RANGO] Aumento aplicado a {gameObject.name}: {modificacionRango.Value} (+{cantidad})");
     }
 
+    /// <summary>
+    /// Decreases the range of the resource directly (server only)
+    /// </summary>
     public void DisminuirRango(int cantidad)
     {
-        if (!IsServer) return;
+        if (!IsServer)
+        {
+            Debug.LogWarning("[MODIFICADOR] DisminuirRango directo llamado desde cliente, ignorando");
+            return;
+        }
+
+        if (mostrarDebug)
+        {
+            Debug.Log($"[MODIFICADOR] Aplicando disminución de rango directo: -{cantidad}");
+        }
 
         modificacionRango.Value -= cantidad;
-        Debug.Log($"[RANGO] Disminución aplicada a {gameObject.name}: {modificacionRango.Value} (-{cantidad})");
     }
 
-    // Métodos para modificar valores con seguridad (conservamos estos para uso normal)
+    /// <summary>
+    /// Increases the life of the resource directly (server only)
+    /// </summary>
+    public void AumentarVida(float cantidad)
+    {
+        if (!IsServer)
+        {
+            Debug.LogWarning("[MODIFICADOR] AumentarVida directo llamado desde cliente, ignorando");
+            return;
+        }
+
+        modificacionVida.Value += cantidad;
+    }
+
+    /// <summary>
+    /// Decreases the life of the resource directly (server only)
+    /// </summary>
+    public void DisminuirVida(float cantidad)
+    {
+        if (!IsServer)
+        {
+            Debug.LogWarning("[MODIFICADOR] DisminuirVida directo llamado desde cliente, ignorando");
+            return;
+        }
+
+        modificacionVida.Value -= cantidad;
+    }
+
+    /// <summary>
+    /// Sets the resource as immobile directly (server only)
+    /// </summary>
+    public void HacerInmovil()
+    {
+        if (!IsServer)
+        {
+            Debug.LogWarning("[MODIFICADOR] HacerInmovil directo llamado desde cliente, ignorando");
+            return;
+        }
+
+        esMovible.Value = false;
+    }
+
+    /// <summary>
+    /// Sets the resource as mobile directly (server only)
+    /// </summary>
+    public void HacerMovil()
+    {
+        if (!IsServer)
+        {
+            Debug.LogWarning("[MODIFICADOR] HacerMovil directo llamado desde cliente, ignorando");
+            return;
+        }
+
+        esMovible.Value = true;
+    }
+
+    #endregion
+
+    // RPCs for remote modification (can be called from anywhere)
+    #region Server RPCs for Remote Modification
+
+    /// <summary>
+    /// Server RPC to increase range safely
+    /// </summary>
     [ServerRpc(RequireOwnership = false)]
     public void AumentarRangoServerRpc(int cantidad)
     {
         EjecutarCuandoListo(() => {
+            int valorAntes = modificacionRango.Value;
             modificacionRango.Value += cantidad;
-            Debug.Log($"[RANGO] Aumento aplicado a {gameObject.name}: {modificacionRango.Value} (+{cantidad})");
+
+            if (mostrarDebug)
+            {
+                Debug.Log($"[RPC] Aumento de rango aplicado a {gameObject.name}: {valorAntes} -> {modificacionRango.Value} (+{cantidad})");
+            }
         });
     }
 
+    /// <summary>
+    /// Server RPC to decrease range safely
+    /// </summary>
     [ServerRpc(RequireOwnership = false)]
     public void DisminuirRangoServerRpc(int cantidad)
     {
         EjecutarCuandoListo(() => {
+            int valorAntes = modificacionRango.Value;
             modificacionRango.Value -= cantidad;
+
+            if (mostrarDebug)
+            {
+                Debug.Log($"[RPC] Disminución de rango aplicada a {gameObject.name}: {valorAntes} -> {modificacionRango.Value} (-{cantidad})");
+            }
         });
     }
 
+    /// <summary>
+    /// Server RPC to increase life safely
+    /// </summary>
     [ServerRpc(RequireOwnership = false)]
     public void AumentarVidaServerRpc(float cantidad)
     {
         EjecutarCuandoListo(() => {
+            float valorAntes = modificacionVida.Value;
             modificacionVida.Value += cantidad;
+
+            if (mostrarDebug)
+            {
+                Debug.Log($"[RPC] Aumento de vida aplicado a {gameObject.name}: {valorAntes} -> {modificacionVida.Value} (+{cantidad})");
+            }
         });
     }
 
+    /// <summary>
+    /// Server RPC to decrease life safely
+    /// </summary>
     [ServerRpc(RequireOwnership = false)]
     public void DisminuirVidaServerRpc(float cantidad)
     {
         EjecutarCuandoListo(() => {
+            float valorAntes = modificacionVida.Value;
             modificacionVida.Value -= cantidad;
+
+            if (mostrarDebug)
+            {
+                Debug.Log($"[RPC] Disminución de vida aplicada a {gameObject.name}: {valorAntes} -> {modificacionVida.Value} (-{cantidad})");
+            }
         });
     }
 
+    /// <summary>
+    /// Server RPC to make the resource immobile safely
+    /// </summary>
     [ServerRpc(RequireOwnership = false)]
     public void HacerInmovilServerRpc()
     {
         EjecutarCuandoListo(() => {
+            bool valorAntes = esMovible.Value;
             esMovible.Value = false;
+
+            if (mostrarDebug && valorAntes != false)
+            {
+                Debug.Log($"[RPC] {gameObject.name} ahora es inmóvil");
+            }
         });
     }
 
+    /// <summary>
+    /// Server RPC to make the resource mobile safely
+    /// </summary>
     [ServerRpc(RequireOwnership = false)]
     public void HacerMovilServerRpc()
     {
         EjecutarCuandoListo(() => {
+            bool valorAntes = esMovible.Value;
             esMovible.Value = true;
+
+            if (mostrarDebug && valorAntes != true)
+            {
+                Debug.Log($"[RPC] {gameObject.name} ahora es móvil");
+            }
         });
     }
 
-    // Eventos de respuesta a cambios
+    #endregion
+
+    // Event handlers for network variable changes
+    #region Network Variable Change Handlers
+
     private void OnRangoModificado(int valorAnterior, int nuevoValor)
     {
-        if (recursoBase != null)
+        if (recursoBase != null && mostrarDebug)
         {
-            Debug.Log($"Rango de {recursoBase.Name} modificado de {recursoBase.range + valorAnterior} a {recursoBase.range + nuevoValor}");
+            Debug.Log($"[EVENTO] Rango de {recursoBase.Name} modificado de {recursoBase.range + valorAnterior} a {recursoBase.range + nuevoValor}");
         }
     }
 
     private void OnVidaModificada(float valorAnterior, float nuevoValor)
     {
-        if (recursoBase != null)
+        if (recursoBase != null && mostrarDebug)
         {
-            Debug.Log($"Vida de {recursoBase.Name} modificada de {recursoBase.vida + valorAnterior} a {recursoBase.vida + nuevoValor}");
+            Debug.Log($"[EVENTO] Vida de {recursoBase.Name} modificada de {recursoBase.vida + valorAnterior} a {recursoBase.vida + nuevoValor}");
         }
     }
 
     private void OnMovilidadModificada(bool valorAnterior, bool nuevoValor)
     {
-        if (recursoBase != null)
+        if (recursoBase != null && mostrarDebug)
         {
-            Debug.Log($"Movilidad de {recursoBase.Name} cambiada a {nuevoValor}");
+            Debug.Log($"[EVENTO] Movilidad de {recursoBase.Name} cambiada a {nuevoValor}");
         }
     }
 
-    // Métodos para consultar valores actuales (sin cambios)
+    #endregion
+
+    // Methods to query current values
+    #region Value Getters
+
+    /// <summary>
+    /// Gets the current range including modifications
+    /// </summary>
     public int GetRangoActual()
     {
         if (recursoBase == null) return 0;
         return recursoBase.range + modificacionRango.Value;
     }
 
+    /// <summary>
+    /// Gets the current life including modifications
+    /// </summary>
     public float GetVidaActual()
     {
         if (recursoBase == null) return 0f;
         return recursoBase.vida + modificacionVida.Value;
     }
 
+    /// <summary>
+    /// Checks if the resource is currently movable
+    /// </summary>
     public bool EsMovible()
     {
-        return esMovible.Value;
+        if (recursoBase == null) return false;
+        return recursoBase.esmovible && esMovible.Value;
     }
+
+    #endregion
 }

@@ -3,6 +3,8 @@
 using System.Collections.Generic;
 using Unity.Netcode;
 using UnityEngine;
+using System.Collections;
+
 
 public class NodeMap : NetworkBehaviour
 {
@@ -16,7 +18,7 @@ public class NodeMap : NetworkBehaviour
     [SerializeField] private bool showDebugInfo = false;
     [SerializeField] private bool showVisualDebugHelpers = false;
 
-   
+
     // Lista de nodos generados
     public List<GameObject> nodesList = new List<GameObject>();
 
@@ -329,37 +331,80 @@ public class NodeMap : NetworkBehaviour
         }
     }
 
-
-    // Método para activar todos los efectos en este tablero
-    public void ActivarTodosLosEfectos()
+    // Método para activar todos los efectos en este tablero con soporte para callbacks
+    public void ActivarTodosLosEfectos(System.Action onComplete = null)
     {
-        if (!IsServer) return;
+        if (!IsServer)
+        {
+            onComplete?.Invoke();
+            return;
+        }
+
+        // Contador para seguimiento de efectos activados
+        int totalNodos = 0;
+        int nodosCompletados = 0;
+
+        // Primero contamos cuántos nodos tienen ingredientes
+        foreach (var nodoObj in nodesList)
+        {
+            Node nodo = nodoObj.GetComponent<Node>();
+            if (nodo != null && nodo.hasIngredient.Value)
+            {
+                totalNodos++;
+            }
+        }
+
+        // Si no hay ingredientes, terminamos inmediatamente
+        if (totalNodos == 0)
+        {
+            Debug.Log($"NodeMap {ownerClientId}: No hay ingredientes para activar efectos");
+            onComplete?.Invoke();
+            return;
+        }
+
+        // Callback para contar efectos completados
+        System.Action efectoCompletado = () =>
+        {
+            nodosCompletados++;
+            if (nodosCompletados >= totalNodos)
+            {
+                Debug.Log($"NodeMap {ownerClientId}: Todos los efectos de ingredientes completados ({nodosCompletados}/{totalNodos})");
+                onComplete?.Invoke();
+            }
+        };
 
         // Recorrer todos los nodos y activar los efectos de sus ingredientes
         foreach (var nodoObj in nodesList)
         {
-            // Obtener el componente Node (en lugar de asumir que nodesList contiene Nodes)
             Node nodo = nodoObj.GetComponent<Node>();
-
             if (nodo != null && nodo.hasIngredient.Value)
             {
-                ActivarEfectoIngrediente(nodo);
+                StartCoroutine(ActivarEfectoIngredienteConCallback(nodo, efectoCompletado));
             }
         }
     }
 
-    /// En la clase NodeMap
-    private void ActivarEfectoIngrediente(Node nodo)
+    /// <summary>
+    /// Versión con coroutine del método ActivarEfectoIngrediente que soporta callbacks
+    /// </summary>
+    /// <summary>
+    /// Versión con coroutine del método ActivarEfectoIngrediente que soporta callbacks
+    /// </summary>
+    private IEnumerator ActivarEfectoIngredienteConCallback(Node nodo, System.Action callback)
     {
         if (nodo == null || !nodo.hasIngredient.Value || nodo.currentIngredient == null)
-            return;
+        {
+            callback?.Invoke();
+            yield break;
+        }
 
         // Obtener el tipo de ingrediente directamente del componente ResourcesSO
         componente recursoIngrediente = nodo.currentIngredient.GetComponent<componente>();
         if (recursoIngrediente == null)
         {
             Debug.LogWarning("El ingrediente no tiene componente ResourcesSO");
-            return;
+            callback?.Invoke();
+            yield break;
         }
 
         string tipoIngrediente = recursoIngrediente.data.name;
@@ -369,7 +414,8 @@ public class NodeMap : NetworkBehaviour
         if (ingredienteSO == null)
         {
             Debug.LogWarning($"No se encontró IngredientesSO para {tipoIngrediente}");
-            return;
+            callback?.Invoke();
+            yield break;
         }
 
         // Calcular nodos afectados
@@ -384,12 +430,37 @@ public class NodeMap : NetworkBehaviour
             {
                 gestor.ConfigurarConIngrediente(ingredienteSO);
                 gestor.IniciarEfecto(nodo.gameObject, nodosAfectados);
+
+                // Dar tiempo para que el efecto se inicialice correctamente
+                yield return new WaitForSeconds(0.2f);
             }
             else
             {
                 Debug.LogError($"El gestor para {tipoIngrediente} no implementa IEffectManager");
                 Destroy(gestorObj);
             }
+        }
+
+        // Llamar al callback para señalar finalización
+        callback?.Invoke();
+    }
+
+    /// <summary>
+    /// Método específico para aplicar efectos que están vinculados a nodos
+    /// </summary>
+    public void AplicarEfectoANodo(GameObject nodo, Efectos efecto)
+    {
+        if (nodo == null || efecto == null) return;
+
+        // Crear un registro del efecto vinculado a este nodo
+        Node nodoComp = nodo.GetComponent<Node>();
+        if (nodoComp != null)
+        {
+            // Marcar el nodo con algún tipo de indicador visual
+            nodoComp.MarcarConEfecto(efecto);
+
+            // Registramos que este nodo tiene un efecto específico
+            // Esto debería implementarse apropiadamente
         }
     }
 }

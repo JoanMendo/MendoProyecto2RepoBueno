@@ -3,68 +3,98 @@ using System.Collections.Generic;
 using Unity.Netcode;
 using UnityEngine;
 
+/// <summary>
+/// Manager for handling Ternera effects, which increase life and make the first neighbor immobile.
+/// </summary>
 public class TerneraEffectManager : NetworkBehaviour, IEffectManager
 {
+    // Configuration for the life increase amount
     [SerializeField] private float aumentoVida = 1f;
+
+    // References to affected objects
     private GameObject ingredienteObjetivo;
+
+    // Network synchronized state variables
     private NetworkVariable<bool> efectoAplicado = new NetworkVariable<bool>(false);
+
+    // Reference to the configured ingredient
     private IngredientesSO _ingredienteConfigurado;
 
-    // Implementación de ConfigurarConIngrediente de IEffectManager
+    // Debug flag
+    [SerializeField] private bool mostrarDebug = false;
+
+    /// <summary>
+    /// Configures the manager with the ingredient data
+    /// </summary>
     public void ConfigurarConIngrediente(IngredientesSO ingrediente)
     {
         _ingredienteConfigurado = ingrediente;
-        Debug.Log($"TerneraEffectManager configurado con: {ingrediente.name}");
 
-        // Si el ingrediente es Ternera, podemos obtener el aumento de vida directamente
+        if (mostrarDebug)
+        {
+            Debug.Log($"TerneraEffectManager configurado con: {ingrediente.name}");
+        }
+
+        // If the ingredient is Ternera, we can get the life increase directly
         if (ingrediente is Ternera terneraIngrediente)
         {
             aumentoVida = terneraIngrediente.aumentoVida;
         }
     }
 
-    // Implementación de IniciarEfecto de IEffectManager
+    /// <summary>
+    /// Starts the effect on the specified nodes
+    /// </summary>
     public void IniciarEfecto(GameObject nodoOrigen, List<GameObject> nodosAfectados)
     {
-        // Verificar si hay al menos un nodo afectado
+        // Check if there's at least one affected node
         if (nodosAfectados == null || nodosAfectados.Count == 0)
         {
-            Debug.LogWarning("TerneraEffectManager: No hay nodos afectados para aplicar el efecto");
+            if (mostrarDebug)
+            {
+                Debug.LogWarning("TerneraEffectManager: No hay nodos afectados para aplicar el efecto");
+            }
             return;
         }
 
-        // La ternera solo afecta al primer nodo vecino
+        // Ternera only affects the first neighboring node
         GameObject primerVecino = nodosAfectados[0];
 
-        // Obtener el aumento de vida del ingrediente configurado, o usar valor por defecto
+        // Get the life increase from the configured ingredient, or use default value
         float cantidadVida = aumentoVida;
 
-        // Si tenemos la referencia al ingrediente específico, usar su valor
+        // If we have a reference to the specific ingredient, use its value
         if (_ingredienteConfigurado is Ternera terneraIngrediente)
         {
             cantidadVida = terneraIngrediente.aumentoVida;
         }
 
-        // Delegar al método específico
+        // Delegate to the specific method
         IniciarEfectoTernera(nodoOrigen, primerVecino, cantidadVida);
     }
 
+    /// <summary>
+    /// Initiates the Ternera effect on a specific target node
+    /// </summary>
     public void IniciarEfectoTernera(GameObject nodoOrigen, GameObject nodoObjetivo, float cantidadVida)
     {
-        // 1. Inicializar valores
+        // 1. Initialize values
         aumentoVida = cantidadVida;
 
-        // 2. Obtener referencia al ingrediente objetivo
+        // 2. Get reference to the target ingredient
         Node nodoVecinoComp = nodoObjetivo.GetComponent<Node>();
         if (nodoVecinoComp == null || !nodoVecinoComp.hasIngredient.Value)
         {
-            Debug.LogWarning("TerneraEffectManager: El nodo objetivo no tiene un ingrediente");
+            if (mostrarDebug)
+            {
+                Debug.LogWarning("TerneraEffectManager: El nodo objetivo no tiene un ingrediente");
+            }
             return;
         }
 
         ingredienteObjetivo = nodoVecinoComp.currentIngredient;
 
-        // 3. Verificar que tenemos un NetworkObject y hacer Spawning
+        // 3. Verify that we have a NetworkObject and spawn it
         if (!IsSpawned && GetComponent<NetworkObject>() != null)
         {
             GetComponent<NetworkObject>().Spawn();
@@ -75,7 +105,7 @@ public class TerneraEffectManager : NetworkBehaviour, IEffectManager
             return;
         }
 
-        // 4. Verificar que el ingrediente objetivo tiene NetworkObject
+        // 4. Verify that the target ingredient has a NetworkObject
         NetworkObject objetivoNetObj = ingredienteObjetivo.GetComponent<NetworkObject>();
         if (objetivoNetObj == null || !objetivoNetObj.IsSpawned)
         {
@@ -83,43 +113,54 @@ public class TerneraEffectManager : NetworkBehaviour, IEffectManager
             return;
         }
 
-        // 5. Aplicar el efecto en el servidor
+        // 5. Apply the effect on the server
         AplicarEfectoServerRpc(
             objetivoNetObj.NetworkObjectId,
             aumentoVida
         );
 
-        Debug.Log($"Efecto de Ternera iniciado con aumento de vida: {aumentoVida}");
+        if (mostrarDebug)
+        {
+            Debug.Log($"Efecto de Ternera iniciado con aumento de vida: {aumentoVida}");
+        }
     }
 
+    /// <summary>
+    /// Server RPC to apply the effect to the target
+    /// </summary>
     [ServerRpc(RequireOwnership = false)]
     private void AplicarEfectoServerRpc(ulong objetivoId, float cantidad)
     {
-        // Preparar cliente primero
+        // Prepare client first
         PrepararObjetivoClientRpc(objetivoId);
 
-        // Localizar objeto objetivo
+        // Find target object
         if (!NetworkManager.Singleton.SpawnManager.SpawnedObjects.TryGetValue(objetivoId, out NetworkObject objetivoNetObj))
         {
             Debug.LogError($"TerneraEffectManager: No se encontró objeto con ID {objetivoId}");
             return;
         }
 
-        // Usar coroutine para dar tiempo a la sincronización
+        // Use coroutine to give time for synchronization
         StartCoroutine(AplicarEfectoConDelay(objetivoNetObj.gameObject, cantidad, objetivoId));
     }
 
+    /// <summary>
+    /// Applies the effect with a delay to ensure synchronization
+    /// </summary>
     private IEnumerator AplicarEfectoConDelay(GameObject objetivo, float cantidad, ulong id)
     {
         yield return new WaitForSeconds(0.1f);
 
-        // Aplicar modificador
+        if (objetivo == null) yield break;
+
+        // Get or add the ModificadorRecurso component
         ModificadorRecurso mod = objetivo.GetComponent<ModificadorRecurso>();
         if (mod == null)
         {
             mod = objetivo.AddComponent<ModificadorRecurso>();
 
-            // Asignar recurso base
+            // Assign base resource
             componente ingrediente = objetivo.GetComponent<componente>();
             if (ingrediente != null && ingrediente.data != null)
             {
@@ -127,37 +168,43 @@ public class TerneraEffectManager : NetworkBehaviour, IEffectManager
             }
         }
 
-        // Modificar directamente las variables de red
+        // Directly modify the network variables
         float vidaAntes = mod.GetVidaActual();
-        mod.modificacionVida.Value += cantidad;
+        mod.AumentarVida(cantidad);
         float vidaDespues = mod.GetVidaActual();
 
         bool movibleAntes = mod.EsMovible();
-        mod.esMovible.Value = false;
+        mod.HacerInmovil();
 
-        Debug.Log($"Ternera: Aplicado efecto a {objetivo.name}. " +
-                  $"Vida: {vidaAntes} -> {vidaDespues} (+{cantidad}), " +
-                  $"Movible: {movibleAntes} -> {mod.EsMovible()}");
+        if (mostrarDebug)
+        {
+            Debug.Log($"Ternera: Aplicado efecto a {objetivo.name}. " +
+                      $"Vida: {vidaAntes} -> {vidaDespues} (+{cantidad}), " +
+                      $"Movible: {movibleAntes} -> {mod.EsMovible()}");
+        }
 
-        // Actualizar estado y notificar a clientes
+        // Update state and notify clients
         efectoAplicado.Value = true;
         AplicarEfectoASingleObjetivoClientRpc(id);
     }
 
+    /// <summary>
+    /// Prepares clients to receive the effect by ensuring the ModificadorRecurso component exists
+    /// </summary>
     [ClientRpc]
     private void PrepararObjetivoClientRpc(ulong id)
     {
-        // Localizar objeto objetivo en el cliente
+        // Locate the target object on the client
         if (!NetworkManager.Singleton.SpawnManager.SpawnedObjects.TryGetValue(id, out NetworkObject objetivoNetObj))
             return;
 
-        // Verificamos si ya existe el ModificadorRecurso en el cliente
+        // Check if the ModificadorRecurso component already exists on the client
         ModificadorRecurso mod = objetivoNetObj.gameObject.GetComponent<ModificadorRecurso>();
         if (mod == null)
         {
             mod = objetivoNetObj.gameObject.AddComponent<ModificadorRecurso>();
 
-            // Obtener recurso del componente
+            // Get the resource from the component
             componente comp = objetivoNetObj.gameObject.GetComponent<componente>();
             if (comp != null && comp.data != null)
             {
@@ -165,61 +212,93 @@ public class TerneraEffectManager : NetworkBehaviour, IEffectManager
             }
         }
 
-        Debug.Log($"[CLIENTE] Preparado objeto {objetivoNetObj.name} para recibir efecto Ternera");
+        if (mostrarDebug)
+        {
+            Debug.Log($"[CLIENTE] Preparado objeto {objetivoNetObj.name} para recibir efecto Ternera");
+        }
     }
 
+    /// <summary>
+    /// Notifies a client that an effect has been applied to a specific object
+    /// </summary>
     [ClientRpc]
     private void AplicarEfectoASingleObjetivoClientRpc(ulong id)
     {
         if (!NetworkManager.Singleton.SpawnManager.SpawnedObjects.TryGetValue(id, out NetworkObject objetivoNetObj))
             return;
 
-        Debug.Log($"[CLIENTE] Efecto Ternera aplicado a {objetivoNetObj.name}");
+        if (mostrarDebug)
+        {
+            Debug.Log($"[CLIENTE] Efecto Ternera aplicado a {objetivoNetObj.name}");
+        }
     }
 
+    /// <summary>
+    /// Notifies all clients that the effect has been applied
+    /// </summary>
     [ClientRpc]
     private void AplicarEfectoClientRpc(ulong objetivoId)
     {
-        Debug.Log($"Efecto de Ternera aplicado al objeto {objetivoId}");
+        if (mostrarDebug)
+        {
+            Debug.Log($"Efecto de Ternera aplicado al objeto {objetivoId}");
+        }
     }
 
-    // Implementación de LimpiarEfecto de IEffectManager
+    /// <summary>
+    /// Cleans up the effect and all associated resources
+    /// </summary>
     public void LimpiarEfecto()
     {
-        Debug.Log("TerneraEffectManager: LimpiarEfecto llamado");
+        if (mostrarDebug)
+        {
+            Debug.Log("TerneraEffectManager: LimpiarEfecto llamado");
+        }
+
         if (IsSpawned)
         {
             LimpiarEfectoServerRpc();
         }
     }
 
+    /// <summary>
+    /// Server RPC to clean up the effect
+    /// </summary>
     [ServerRpc(RequireOwnership = false)]
     private void LimpiarEfectoServerRpc()
     {
-        // Aquí podrías revertir los efectos si es necesario
-        // Por ejemplo, quitar la inmovilidad, aunque esto podría no tener sentido
-        // para el aumento de vida que ya se aplicó
+        // For Ternera, we typically don't revert the effects since they are permanent
+        // (increased life and immobility)
 
-        // Notificar a los clientes y eliminar el objeto
+        // Notify clients and destroy the object
         LimpiarEfectoClientRpc();
 
-        // Auto-destrucción después de un pequeño retraso
+        // Self-destruct after a small delay
         StartCoroutine(DestroyAfterDelay(0.2f));
     }
 
+    /// <summary>
+    /// Client RPC to clean up the effect
+    /// </summary>
     [ClientRpc]
     private void LimpiarEfectoClientRpc()
     {
-        Debug.Log("Limpiando efecto Ternera");
+        if (mostrarDebug)
+        {
+            Debug.Log("Limpiando efecto Ternera");
+        }
     }
 
+    /// <summary>
+    /// Destroys the manager after a delay
+    /// </summary>
     private IEnumerator DestroyAfterDelay(float delay)
     {
         yield return new WaitForSeconds(delay);
 
         if (IsSpawned && GetComponent<NetworkObject>() != null)
         {
-            GetComponent<NetworkObject>().Despawn(true); // true para destruir el objeto en todos los clientes
+            GetComponent<NetworkObject>().Despawn(true); // true to destroy the object on all clients
         }
         else if (gameObject != null)
         {

@@ -21,7 +21,7 @@ MonoBehaviour:
   nivel: 1
   vida: 1
   forma: cuadrado
-  esmovible: 0
+  esmovible: 1
   niveles_ignorar: 
   Sprite: {fileID: 0}
   prefab3D: {fileID: 2305179757331706274, guid: ed4a5af93f354514997e6b93aa3bc73b, type: 3}

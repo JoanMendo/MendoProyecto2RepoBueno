@@ -5,6 +5,9 @@ using System.Collections.Generic;
 
 public class TomateMovementManager : NetworkBehaviour, IEffectManager
 {
+    [Header("Automatización")]
+    [SerializeField] private bool modoAutomatico = true;
+    [SerializeField] private float tiempoEsperaAutomatico = 0.5f;
     private GameObject nodoOrigen;
     private List<GameObject> nodosDisponibles = new List<GameObject>();
     private List<Material> materialesOriginales = new List<Material>();
@@ -40,6 +43,13 @@ public class TomateMovementManager : NetworkBehaviour, IEffectManager
             material = tomateIngrediente.materialResaltado;
             color = tomateIngrediente.colorResaltado;
         }
+        FaseTurno? faseActual = null;
+        if (TurnManager.Instance != null)
+        {
+            faseActual = TurnManager.Instance.GetFaseActual();
+        }
+        // Activar modo automático si estamos en fase de ejecución
+        modoAutomatico = (faseActual == FaseTurno.EjecucionAcciones);
 
         // Delegar al método específico
         IniciarMovimientoTomate(nodoOrigen, nodosAfectados, material, color);
@@ -111,8 +121,41 @@ public class TomateMovementManager : NetworkBehaviour, IEffectManager
 
         movimientoEnProgreso = true;
 
+        // Modo automático: elegir un nodo al azar y moverlo después de una breve pausa
+        if (modoAutomatico)
+        {
+            StartCoroutine(RealizarMovimientoAutomatico());
+        }
+        else
+        {
+            // Modo manual: esperar al clic del usuario (comportamiento original)
+            Invoke("FinalizarMovimiento", 10f); // Temporizador de seguridad
+        }
+
         // Temporizador de seguridad para limpiar después de un tiempo
         Invoke("FinalizarMovimiento", 10f);
+    }
+
+    // Nuevo método para realizar movimiento automático
+    private IEnumerator RealizarMovimientoAutomatico()
+    {
+        // Esperar un momento para que se vea el efecto visual
+        yield return new WaitForSeconds(tiempoEsperaAutomatico);
+
+        // Seleccionar un nodo al azar
+        if (nodosDisponibles.Count > 0)
+        {
+            int indiceAleatorio = Random.Range(0, nodosDisponibles.Count);
+            GameObject nodoSeleccionado = nodosDisponibles[indiceAleatorio];
+
+            // Procesar el movimiento
+            ProcesarClic(nodoSeleccionado);
+        }
+        else
+        {
+            // Por si acaso los nodos disponibles cambiaron
+            FinalizarMovimiento();
+        }
     }
 
     /// ‡‡<summary>_PLACEHOLDER‡‡

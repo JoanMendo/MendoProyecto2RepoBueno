@@ -77,7 +77,7 @@ public class GlobalGameManager : NetworkBehaviour
         // Instanciar el tablero primero sin spawnearlo
         GameObject tablero = Instantiate(tableroPrefab);
 
-        // Obtener NodeMap y configurarlo antes del spawn
+        // Configurar todas las propiedades ANTES de spawning
         NodeMap nodeMap = tablero.GetComponent<NodeMap>();
         if (nodeMap != null)
         {
@@ -88,30 +88,40 @@ public class GlobalGameManager : NetworkBehaviour
         {
             Debug.LogWarning("El tablero no tiene componente NodeMap!");
         }
+
+        // Asegurar que la economía esté configurada
         Economia economiaJugador = tablero.GetComponent<Economia>();
         if (economiaJugador == null)
         {
             economiaJugador = tablero.AddComponent<Economia>();
         }
         economiaJugador.clientId.Value = clientId;
-        // Spawnear el tablero
+
+        // IMPORTANTE: Primero hacer spawn del tablero
         NetworkObject tableNetObj = tablero.GetComponent<NetworkObject>();
         if (tableNetObj != null)
         {
-            Debug.Log($"Spawneando tablero para cliente {clientId}");
             tableNetObj.SpawnWithOwnership(clientId);
-            //  Instanciar ReadyButton por separado
+            Debug.Log($"Tablero spawneado para cliente {clientId}");
+
+            // Después registrar el tablero
+            if (TableroRegistry.Instance != null)
+            {
+                TableroRegistry.Instance.RegistrarTablero(clientId, nodeMap);
+                Debug.Log($"Tablero registrado en TableroRegistry para cliente {clientId}");
+            }
+
+            // Finalmente instanciar el botón Ready
             SpawnReadyButtonForTablero(clientId, tablero);
+
+            // Registrar el tablero generado
+            spawnedBoards.Add(tablero);
         }
         else
         {
-            Debug.LogError("¡El tablero no tiene NetworkObject! No puede ser spawneado.");
+            Debug.LogError($"¡El tablero no tiene NetworkObject! No puede ser spawneado para cliente {clientId}");
             Destroy(tablero);
-            return;
         }
-
-        // Registrar el tablero generado
-        spawnedBoards.Add(tablero);
     }
 
 

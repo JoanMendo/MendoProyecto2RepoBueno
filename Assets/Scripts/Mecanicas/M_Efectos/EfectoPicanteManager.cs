@@ -5,7 +5,6 @@ using Unity.Netcode;
 
 public class EfectoPicanteManager : NetworkBehaviour, IEfectoManager
 {
-    [Header("Configuración")]
     [SerializeField] private float delayEntreMovimientos = 0.5f;
     [SerializeField] private int movimientosPorTurno = 1;
 
@@ -14,14 +13,23 @@ public class EfectoPicanteManager : NetworkBehaviour, IEfectoManager
     private S_Picante efectoConfigurado;
     private int duracionRestante;
 
+    // NUEVO: Lista de nodos afectados por el efecto
+    private List<GameObject> nodosAfectados = new List<GameObject>();
+    private NetworkVariable<bool> efectoEnNodo = new NetworkVariable<bool>(true);
+
     // Estado de ejecución
-    private bool efectoEnEjecucion = false;
+    private bool efectoActivo = false;
     private Coroutine rutinaDeProcesamiento;
 
     // Para efectos visuales
     private ParticleSystem particulas;
+    private List<GameObject> efectosVisualesNodos = new List<GameObject>();
 
-    // Implementación de la interfaz IEfectoManager
+    public void ConfigurarConIngrediente(IngredientesSO ingrediente)
+    {
+        Debug.LogError("EfectoPicanteManager debe ser configurado con un efecto, no con un ingrediente");
+    }
+
     public void ConfigurarConEfecto(Efectos efecto)
     {
         if (efecto is S_Picante efectoPicante)
@@ -58,6 +66,9 @@ public class EfectoPicanteManager : NetworkBehaviour, IEfectoManager
 
         nodoOrigen = nodosSeleccionados[0];
 
+        // NUEVO: Guardar los nodos afectados
+        nodosAfectados = new List<GameObject>(nodosSeleccionados);
+
         // Asegurar que tiene NetworkObject
         if (GetComponent<NetworkObject>() == null)
         {
@@ -76,42 +87,33 @@ public class EfectoPicanteManager : NetworkBehaviour, IEfectoManager
             if (rutinaDeProcesamiento != null)
             {
                 StopCoroutine(rutinaDeProcesamiento);
-                efectoEnEjecucion = false;
+                efectoActivo = false;
             }
 
             // Notificar a los clientes
             LimpiarEfectoClientRpc();
 
             // Programar destrucción después de un tiempo
-            StartCoroutine(DestruirDespuesDeDelay(0.5f));
+            StartCoroutine(DestroyAfterDelay(0.5f));
         }
     }
 
     // Método principal para iniciar el efecto
     public void IniciarEfecto(GameObject nodo, S_Picante efecto, int duracion)
     {
-        // Validaciones
-        if (nodo == null)
+        if (!IsSpawned && GetComponent<NetworkObject>() != null)
         {
-            Debug.LogError("EfectoPicanteManager: nodo es null");
-            return;
+            GetComponent<NetworkObject>().Spawn();
         }
 
-        // Guardar referencias
-        nodoOrigen = nodo;
-        efectoConfigurado = efecto;
-        duracionRestante = duracion;
+        this.nodoOrigen = nodo;
+        this.efectoConfigurado = efecto;
+        this.duracionRestante = duracion;
 
-        // Obtener nodo y NodeMap
-        Node nodoComp = nodo.GetComponent<Node>();
-        if (nodoComp == null)
+        // NUEVO: Crear efectos visuales para los nodos afectados
+        if (IsServer)
         {
-            Debug.LogError("EfectoPicanteManager: nodo no tiene componente Node");
-            return;
-        }
-        if (efectoConfigurado == null)
-        {
-            Debug.LogWarning("EfectoPicanteManager: No se pudo encontrar configuración S_Picante");
+            CrearEfectosVisualesNodosServerRpc();
         }
 
         // Mostrar efectos visuales
@@ -132,15 +134,51 @@ public class EfectoPicanteManager : NetworkBehaviour, IEfectoManager
         }
     }
 
+    // NUEVO: Método para crear efectos visuales en los nodos
+    [ServerRpc(RequireOwnership = false)]
+    private void CrearEfectosVisualesNodosServerRpc()
+    {
+        foreach (var nodo in nodosAfectados)
+        {
+            if (nodo != null)
+            {
+                CrearEfectoVisualNodoClientRpc(nodo.GetComponent<NetworkObject>().NetworkObjectId);
+            }
+        }
+    }
+
+    [ClientRpc]
+    private void CrearEfectoVisualNodoClientRpc(ulong nodoId)
+    {
+        if (!NetworkManager.Singleton.SpawnManager.SpawnedObjects.TryGetValue(nodoId, out NetworkObject nodoNetObj))
+            return;
+
+        GameObject nodo = nodoNetObj.gameObject;
+
+        // Crear un efecto visual simple para el nodo
+        GameObject efectoVisual = new GameObject("EfectoPicanteNodo");
+        efectoVisual.transform.position = nodo.transform.position + Vector3.up * 0.2f;
+
+        // Añadir un sistema de partículas
+        ParticleSystem ps = efectoVisual.AddComponent<ParticleSystem>();
+        var main = ps.main;
+        main.startSize = 0.2f;
+        main.startColor = Color.red;
+        main.startLifetime = 2f;
+
+        // Guardar referencia para poder destruirlo después
+        efectosVisualesNodos.Add(efectoVisual);
+    }
+
     // Método para realizar movimientos aleatorios
     private void MoverAleatoriamente()
     {
         if (!IsServer) return;
         Debug.Log("Iniciando movimientos aleatorios");
         // Iniciar coroutine solo si no está ya ejecutándose
-        if (!efectoEnEjecucion)
+        if (!efectoActivo)
         {
-            efectoEnEjecucion = true;
+            efectoActivo = true;
             rutinaDeProcesamiento = StartCoroutine(ProcesarMovimientosAleatorios());
         }
     }
@@ -149,14 +187,14 @@ public class EfectoPicanteManager : NetworkBehaviour, IEfectoManager
     {
         for (int i = 0; i < movimientosPorTurno; i++)
         {
-            // Obtener todos los ingredientes movibles
-            List<GameObject> nodosConIngredientes = ObtenerNodosConIngredientesMovibles();
+            // MODIFICADO: Obtener específicamente los ingredientes de los nodos afectados
+            List<GameObject> ingredientesMovibles = ObtenerIngredientesMoviblesEnNodosAfectados();
 
-            if (nodosConIngredientes.Count > 0)
+            if (ingredientesMovibles.Count > 0)
             {
                 // Elegir un ingrediente al azar para mover
-                GameObject nodoAMover = nodosConIngredientes[Random.Range(0, nodosConIngredientes.Count)];
-                List<GameObject> posiblesDestinos = ObtenerNodosVacios(nodoAMover);
+                GameObject ingredienteAMover = ingredientesMovibles[Random.Range(0, ingredientesMovibles.Count)];
+                List<GameObject> posiblesDestinos = ObtenerNodosVacios();
 
                 if (posiblesDestinos.Count > 0)
                 {
@@ -165,7 +203,7 @@ public class EfectoPicanteManager : NetworkBehaviour, IEfectoManager
 
                     // Ejecutar movimiento
                     MoverIngredienteServerRpc(
-                        nodoAMover.GetComponent<NetworkObject>().NetworkObjectId,
+                        ingredienteAMover.GetComponent<NetworkObject>().NetworkObjectId,
                         nodoDestino.GetComponent<NetworkObject>().NetworkObjectId
                     );
 
@@ -175,10 +213,29 @@ public class EfectoPicanteManager : NetworkBehaviour, IEfectoManager
             }
         }
 
-        efectoEnEjecucion = false;
+        efectoActivo = false;
     }
 
-    // Obtener nodos que contienen ingredientes que se pueden mover
+    // NUEVO: Método para obtener específicamente los ingredientes de los nodos afectados
+    private List<GameObject> ObtenerIngredientesMoviblesEnNodosAfectados()
+    {
+        List<GameObject> ingredientes = new List<GameObject>();
+
+        foreach (var nodoObj in nodosAfectados)
+        {
+            if (nodoObj == null) continue;
+
+            Node nodo = nodoObj.GetComponent<Node>();
+            if (nodo != null && nodo.hasIngredient.Value && nodo.currentIngredient != null && nodo.PuedeMoverse())
+            {
+                ingredientes.Add(nodo.currentIngredient);
+            }
+        }
+
+        return ingredientes;
+    }
+
+    // Obtener nodos con ingredientes que se pueden mover
     private List<GameObject> ObtenerNodosConIngredientesMovibles()
     {
         List<GameObject> resultado = new List<GameObject>();
@@ -200,7 +257,7 @@ public class EfectoPicanteManager : NetworkBehaviour, IEfectoManager
     }
 
     // Obtener nodos vacíos disponibles
-    private List<GameObject> ObtenerNodosVacios(GameObject nodoOrigen)
+    private List<GameObject> ObtenerNodosVacios()
     {
         List<GameObject> nodosVacios = new List<GameObject>();
 
@@ -220,72 +277,80 @@ public class EfectoPicanteManager : NetworkBehaviour, IEfectoManager
     }
 
     [ServerRpc(RequireOwnership = false)]
-    private void MoverIngredienteServerRpc(ulong origenId, ulong destinoId)
+    private void MoverIngredienteServerRpc(ulong ingredienteId, ulong destinoId)
     {
-        // Encontrar objetos por NetworkObjectId
-        NetworkObject origenObj = null;
-        NetworkObject destinoObj = null;
-
-        if (!NetworkManager.Singleton.SpawnManager.SpawnedObjects.TryGetValue(origenId, out origenObj))
+        // Localizar objetos por NetworkObjectId
+        if (!NetworkManager.Singleton.SpawnManager.SpawnedObjects.TryGetValue(ingredienteId, out NetworkObject ingredienteObj) ||
+            !NetworkManager.Singleton.SpawnManager.SpawnedObjects.TryGetValue(destinoId, out NetworkObject destinoObj))
         {
-            Debug.LogError($"No se encontró objeto de red con ID {origenId}");
+            Debug.LogError("No se pudieron encontrar los objetos por ID");
             return;
         }
 
-        if (!NetworkManager.Singleton.SpawnManager.SpawnedObjects.TryGetValue(destinoId, out destinoObj))
+        GameObject ingrediente = ingredienteObj.gameObject;
+        GameObject nodoDestino = destinoObj.gameObject;
+
+        // Buscar el nodo que contiene este ingrediente
+        Node nodoOrigen = null;
+        NodeMap nodeMap = FindObjectOfType<NodeMap>();
+        if (nodeMap != null)
         {
-            Debug.LogError($"No se encontró objeto de red con ID {destinoId}");
+            foreach (var nodo in nodeMap.nodesList)
+            {
+                Node comp = nodo.GetComponent<Node>();
+                if (comp != null && comp.hasIngredient.Value && comp.currentIngredient == ingrediente)
+                {
+                    nodoOrigen = comp;
+                    break;
+                }
+            }
+        }
+
+        if (nodoOrigen == null)
+        {
+            Debug.LogError("No se pudo encontrar el nodo origen del ingrediente");
             return;
         }
 
-        Node nodoOrigen = origenObj.GetComponent<Node>();
-        Node nodoDestino = destinoObj.GetComponent<Node>();
-
-        if (nodoOrigen == null || nodoDestino == null)
+        Node nodoDestinoComp = nodoDestino.GetComponent<Node>();
+        if (nodoDestinoComp == null || nodoDestinoComp.hasIngredient.Value)
         {
-            Debug.LogError("Uno de los nodos no tiene componente Node");
+            Debug.LogWarning("El nodo destino no es válido o ya tiene un ingrediente");
             return;
         }
 
-        // Si el nodo destino ya tiene ingrediente, no hacer nada
-        if (nodoDestino.hasIngredient.Value)
+        // Verificar que el ingrediente puede moverse
+        if (!nodoOrigen.PuedeMoverse())
         {
-            Debug.LogWarning("El nodo destino ya tiene un ingrediente");
-            return;
-        }
-
-        // Verificar que el nodo origen tenga ingrediente
-        if (!nodoOrigen.hasIngredient.Value || nodoOrigen.currentIngredient == null)
-        {
-            Debug.LogWarning("El nodo origen no tiene ingrediente para mover");
+            Debug.LogWarning("El ingrediente no puede moverse");
             return;
         }
 
         // Mover ingrediente en el servidor
-        GameObject ingrediente = nodoOrigen.currentIngredient;
-
         // 1. Limpiar nodo origen
         nodoOrigen.hasIngredient.Value = false;
         nodoOrigen.currentIngredient = null;
 
         // 2. Mover el ingrediente físicamente
-        ingrediente.transform.position = nodoDestino.transform.position;
+        Vector3 posOrigen = ingrediente.transform.position;
+        Vector3 posDestino = nodoDestino.transform.position;
+        ingrediente.transform.position = posDestino;
 
         // 3. Actualizar nodo destino
-        nodoDestino.hasIngredient.Value = true;
-        nodoDestino.currentIngredient = ingrediente;
+        nodoDestinoComp.hasIngredient.Value = true;
+        nodoDestinoComp.currentIngredient = ingrediente;
 
         // 4. Notificar a todos los clientes
         MoverIngredienteClientRpc(
-            origenId,
+            nodoOrigen.gameObject.GetComponent<NetworkObject>().NetworkObjectId,
             destinoId,
-            ingrediente.GetComponent<NetworkObject>().NetworkObjectId
+            ingredienteId
         );
 
         // 5. Reproducir efectos de sonido o visuales
         MostrarEfectoMovimientoClientRpc(
-            nodoOrigen.transform.position,
-            nodoDestino.transform.position
+            posOrigen,
+            posDestino
         );
     }
 
@@ -366,9 +431,19 @@ public class EfectoPicanteManager : NetworkBehaviour, IEfectoManager
         {
             particulas.Stop(true, ParticleSystemStopBehavior.StopEmitting);
         }
+
+        // Destruir efectos visuales de nodos
+        foreach (var efecto in efectosVisualesNodos)
+        {
+            if (efecto != null)
+            {
+                Destroy(efecto);
+            }
+        }
+        efectosVisualesNodos.Clear();
     }
 
-    private IEnumerator DestruirDespuesDeDelay(float delay)
+    private IEnumerator DestroyAfterDelay(float delay)
     {
         yield return new WaitForSeconds(delay);
 

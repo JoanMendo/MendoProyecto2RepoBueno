@@ -1,5 +1,7 @@
 using UnityEngine;
 using Unity.Netcode;
+using System.Collections.Generic;
+using System.Collections;
 
 /// ‡‡<summary>_PLACEHOLDER‡‡
 /// Representa un botón de "Listo" que puede ser activado por el jugador que tiene autoridad.
@@ -34,24 +36,32 @@ public class ReadyButton : NetworkBehaviour, IInteractuable
 
     [HideInInspector] public ulong AssociatedTableroId;
 
-    private void Awake()
+    private void Start()
     {
-        Debug.Log($"[ReadyButton] Awake - Button ID: {GetInstanceID()}");
-
-        // Encontrar el TurnManager al inicio
-        turnManager = FindFirstObjectByType<TurnManager>();
+        // Use Start instead of Awake to ensure TurnManager exists
+        turnManager = FindObjectOfType<TurnManager>();
         if (turnManager == null)
         {
-            Debug.LogError("[ReadyButton] No se encontró TurnManager en la escena");
-        }
-        else
-        {
-            Debug.Log("[ReadyButton] TurnManager encontrado correctamente");
+            // Try to find it again later
+            StartCoroutine(FindTurnManagerWithDelay());
         }
 
-        // Suscribirse a los cambios de estado
+        // Register to NetworkVariable changes
         isReady.OnValueChanged += OnReadyChanged;
         buttonColor.OnValueChanged += OnColorChanged;
+    }
+
+    private IEnumerator FindTurnManagerWithDelay()
+    {
+        // Wait for a short moment and try again
+        yield return new WaitForSeconds(0.5f);
+        turnManager = FindObjectOfType<TurnManager>();
+
+        if (turnManager == null && gameObject.activeInHierarchy)
+        {
+            // Try again if still not found
+            StartCoroutine(FindTurnManagerWithDelay());
+        }
     }
 
     public override void OnNetworkSpawn()
@@ -108,18 +118,22 @@ public class ReadyButton : NetworkBehaviour, IInteractuable
     /// ‡‡‡‡<summary>_PLACEHOLDER‡‡_PLACEHOLDER‡‡
     /// RPC para cambiar el estado de listo en el servidor
     /// ‡‡‡‡</summary>_PLACEHOLDER‡‡_PLACEHOLDER‡‡
+    // Modification of UpdateReadyStateServerRpc
     [ServerRpc(RequireOwnership = true)]
     private void UpdateReadyStateServerRpc(bool newState)
     {
-        Debug.Log($"[ReadyButton] UpdateReadyStateServerRpc - Nuevo estado: {newState}");
+        // Only the server can modify NetworkVariables
+        if (IsServer)
+        {
+            isReady.Value = newState;
+            buttonColor.Value = newState ? readyColor : notReadyColor;
 
-        // Simplemente actualiza el estado y el color
-        isReady.Value = newState;
-        UpdateButtonColor(newState);
-
-        
-        // En su lugar, notificar que este botón ha cambiado
-        NotifyReadyButtonChangedServerRpc(OwnerClientId, newState);
+            // Find TurnManager here if needed
+            if (turnManager == null)
+            {
+                turnManager = FindObjectOfType<TurnManager>();
+            }
+        }
     }
 
     // Nuevo RPC para notificar al servidor del cambio
@@ -133,10 +147,28 @@ public class ReadyButton : NetworkBehaviour, IInteractuable
     /// ‡‡‡‡<summary>_PLACEHOLDER‡‡_PLACEHOLDER‡‡
     /// Actualiza el color del botón según su estado
     /// ‡‡‡‡</summary>_PLACEHOLDER‡‡_PLACEHOLDER‡‡
+    // Modifica el método UpdateButtonColor
     private void UpdateButtonColor(bool ready)
     {
-        Debug.Log($"[ReadyButton] UpdateButtonColor - Estado: {ready}");
-        buttonColor.Value = ready ? readyColor : notReadyColor;
+        // Si somos el servidor, podemos modificar la variable directamente
+        if (IsServer)
+        {
+            buttonColor.Value = ready ? readyColor : notReadyColor;
+        }
+        // Si somos el propietario pero no el servidor, usamos un ServerRpc
+        else if (IsOwner)
+        {
+            UpdateButtonColorServerRpc(ready);
+        }
+        // No hacemos nada si no somos ni el servidor ni el propietario
+    }
+
+    // Añade este método ServerRpc
+    [ServerRpc(RequireOwnership = true)]
+    private void UpdateButtonColorServerRpc(bool isReady)
+    {
+        // Solo el servidor actualiza la variable de red
+        buttonColor.Value = isReady ? readyColor : notReadyColor;
     }
 
     /// ‡‡‡‡<summary>_PLACEHOLDER‡‡_PLACEHOLDER‡‡

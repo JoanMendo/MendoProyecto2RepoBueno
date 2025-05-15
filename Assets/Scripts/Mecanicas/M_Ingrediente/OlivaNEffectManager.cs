@@ -3,119 +3,147 @@ using System.Collections.Generic;
 using UnityEngine;
 using Unity.Netcode;
 
+/// <summary>
+/// Manager for handling Oliva_N effects, which increase the range of nearby ingredients.
+/// </summary>
 public class OlivaNEffectManager : NetworkBehaviour, IEffectManager
 {
+    // List of affected ingredients
     private List<GameObject> ingredientesAfectados = new List<GameObject>();
+
+    // Network synchronized variables
     private NetworkVariable<int> cantidadAumento = new NetworkVariable<int>(1);
+
+    // List of NetworkObjectIds for tracking
     private List<ulong> networkIds = new List<ulong>();
+
+    // Reference to the configured ingredient
     private IngredientesSO _ingredienteConfigurado;
 
-    // Variables para manejo temporal del efecto
+    // Variables for temporal effect management
     private GameObject nodoOrigenAlmacenado;
-    private float intervaloComprobacion = 0.5f; // Comprueba cada medio segundo
+    private float intervaloComprobacion = 0.5f; // Check every half second
     private bool efectoActivo = false;
 
-    // Implementación de ConfigurarConIngrediente de IEffectManager
+    // Debug flag
+    [SerializeField] private bool mostrarDebug = false;
+
+    /// <summary>
+    /// Configures the manager with the ingredient data
+    /// </summary>
     public void ConfigurarConIngrediente(IngredientesSO ingrediente)
     {
         _ingredienteConfigurado = ingrediente;
-        Debug.Log($"OlivaNEffectManager configurado con: {ingrediente.name}");
 
-        // Si el ingrediente es Oliva_N, podemos obtener el aumento de rango directamente
+        if (mostrarDebug)
+        {
+            Debug.Log($"OlivaNEffectManager configurado con: {ingrediente.name}");
+        }
+
+        // If the ingredient is Oliva_N, we can get the range increase directly
         if (ingrediente is Oliva_N olivaN)
         {
             cantidadAumento.Value = olivaN.aumentoRango;
         }
     }
 
-    // Implementación de IniciarEfecto de IEffectManager
+    /// <summary>
+    /// Starts the effect on the specified nodes
+    /// </summary>
     public void IniciarEfecto(GameObject nodoOrigen, List<GameObject> nodosAfectados)
     {
-        // Obtener el aumento de rango del ingrediente configurado, o usar valor por defecto
+        // Get the range increase from the configured ingredient, or use default value
         int aumentoRango = 1;
 
-        // Si tenemos la referencia al ingrediente específico, usar su valor
+        // If we have a reference to the specific ingredient, use its value
         if (_ingredienteConfigurado is Oliva_N olivaN)
         {
             aumentoRango = olivaN.aumentoRango;
         }
 
-        // Delegar al método específico
+        // Delegate to the specific method
         IniciarEfectoOlivaN(nodoOrigen, nodosAfectados, aumentoRango);
     }
 
-    /// ‡‡<summary>_PLACEHOLDER‡‡
-    /// Inicia el efecto de aumento de rango en los ingredientes adyacentes
-    /// ‡‡</summary>_PLACEHOLDER‡‡
+    /// <summary>
+    /// Starts the range increase effect on adjacent ingredients
+    /// </summary>
     public void IniciarEfectoOlivaN(GameObject nodoOrigen, List<GameObject> nodosAfectados, int aumentoRango)
     {
-        // Almacenar el nodo origen para poder seguir comprobando
+        // Store the origin node to continue checking
         nodoOrigenAlmacenado = nodoOrigen;
 
-        // Convertirse en objeto de red para poder usar RPC
+        // Make sure we have a NetworkObject and it's spawned
         if (!IsSpawned && GetComponent<NetworkObject>() != null)
         {
             GetComponent<NetworkObject>().Spawn();
         }
 
-        // Configurar cantidad de aumento
+        // Configure the increase amount
         cantidadAumento.Value = aumentoRango;
 
-        // Limpiar listas previas (por si se reutiliza el manager)
+        // Clear previous lists (in case the manager is reused)
         ingredientesAfectados.Clear();
         networkIds.Clear();
 
-        // Realizar comprobación inicial de ingredientes en rango
+        // Perform the initial check of ingredients in range
         ActualizarIngredientesEnRango(nodosAfectados);
 
-        // Iniciar comprobación periódica
+        // Start periodic checking
         efectoActivo = true;
-        InvokeRepeating("ComprobarIngredientesEnRango", intervaloComprobacion, intervaloComprobacion);
+        InvokeRepeating(nameof(ComprobarIngredientesEnRango), intervaloComprobacion, intervaloComprobacion);
 
-        Debug.Log($"Efecto Oliva_N iniciado en {ingredientesAfectados.Count} ingredientes con aumento de {cantidadAumento.Value}");
+        if (mostrarDebug)
+        {
+            Debug.Log($"Efecto Oliva_N iniciado en {ingredientesAfectados.Count} ingredientes con aumento de {cantidadAumento.Value}");
+        }
     }
 
-    /// ‡‡<summary>_PLACEHOLDER‡‡
-    /// Actualiza la lista de ingredientes afectados y aplica/elimina efectos según sea necesario
-    /// ‡‡</summary>_PLACEHOLDER‡‡
+    /// <summary>
+    /// Updates the list of affected ingredients and applies/removes effects as needed
+    /// </summary>
     private void ActualizarIngredientesEnRango(List<GameObject> nodosActuales)
     {
-        // Preparar un conjunto de IDs que están actualmente en rango
+        // Prepare a set of IDs currently in range
         HashSet<ulong> idsEnRango = new HashSet<ulong>();
 
-        // Verificar ingredientes en nodos actuales
+        // Check ingredients in current nodes
         foreach (var nodoVecino in nodosActuales)
         {
+            if (nodoVecino == null) continue;
+
             Node nodo = nodoVecino.GetComponent<Node>();
             if (nodo == null || !nodo.hasIngredient.Value || nodo.currentIngredient == null)
                 continue;
 
-            // Añadir a la lista de ingredientes afectados si es nuevo
+            // Add to the list of affected ingredients if it's new
             if (!ingredientesAfectados.Contains(nodo.currentIngredient))
             {
                 ingredientesAfectados.Add(nodo.currentIngredient);
             }
 
-            // Obtener NetworkObjectId y añadir al conjunto de IDs en rango
+            // Get NetworkObjectId and add to the set of IDs in range
             NetworkObject netObj = nodo.currentIngredient.GetComponent<NetworkObject>();
             if (netObj != null && netObj.IsSpawned)
             {
                 idsEnRango.Add(netObj.NetworkObjectId);
 
-                // Si no estaba ya en nuestra lista, aplicar efecto
+                // If it wasn't already in our list, apply the effect
                 if (!networkIds.Contains(netObj.NetworkObjectId))
                 {
                     networkIds.Add(netObj.NetworkObjectId);
 
                     if (IsServer)
                     {
-                        AplicarEfectoASingleNetworkIdServerRpc(netObj.NetworkObjectId, cantidadAumento.Value);
+                        // First prepare the target, then apply the effect
+                        PrepararObjetivoClientRpc(netObj.NetworkObjectId);
+                        StartCoroutine(AplicarEfectoConDelay(netObj.gameObject, cantidadAumento.Value, netObj.NetworkObjectId));
                     }
                 }
             }
         }
 
-        // Comprobar qué ingredientes ya no están en rango
+        // Check which ingredients are no longer in range
         if (IsServer)
         {
             List<ulong> idsARemover = new List<ulong>();
@@ -124,13 +152,21 @@ public class OlivaNEffectManager : NetworkBehaviour, IEffectManager
             {
                 if (!idsEnRango.Contains(id))
                 {
-                    // Este ingrediente ya no está en rango, eliminar efecto
+                    // This ingredient is no longer in range, remove the effect
                     idsARemover.Add(id);
-                    EliminarEfectoDeNetworkIdServerRpc(id);
+
+                    // Find the object and remove the effect
+                    if (NetworkManager.Singleton.SpawnManager.SpawnedObjects.TryGetValue(id, out NetworkObject objetivoNetObj))
+                    {
+                        RemoverEfectoIngrediente(objetivoNetObj.gameObject, cantidadAumento.Value);
+                    }
+
+                    // Notify clients
+                    EliminarEfectoDeNetworkIdClientRpc(id);
                 }
             }
 
-            // Eliminar IDs que ya no están en rango de nuestra lista
+            // Remove IDs that are no longer in range from our list
             foreach (ulong id in idsARemover)
             {
                 networkIds.Remove(id);
@@ -138,67 +174,56 @@ public class OlivaNEffectManager : NetworkBehaviour, IEffectManager
         }
     }
 
-    /// ‡‡<summary>_PLACEHOLDER‡‡
-    /// Comprueba periódicamente qué ingredientes están en rango y actualiza efectos
-    /// ‡‡</summary>_PLACEHOLDER‡‡
+    /// <summary>
+    /// Periodically checks which ingredients are in range and updates effects
+    /// </summary>
     private void ComprobarIngredientesEnRango()
     {
         if (!efectoActivo || nodoOrigenAlmacenado == null) return;
 
-        // Verificar que la Oliva_N sigue existiendo
+        // Verify that the Oliva_N still exists
         Node nodoOliva = nodoOrigenAlmacenado.GetComponent<Node>();
         if (nodoOliva == null || !nodoOliva.hasIngredient.Value)
         {
-            // Si la oliva ya no existe, desactivar todo el efecto
+            // If the olive no longer exists, deactivate the entire effect
             LimpiarEfecto();
             return;
         }
 
-        // Obtener los nodos vecinos usando el método existente en el ScriptableObject
+        // Get the current neighbor nodes
         List<GameObject> nodosVecinosActuales = new List<GameObject>();
 
-        // Si tenemos referencia al ScriptableObject, usarla directamente
+        // If we have a reference to the ScriptableObject, use it directly
         if (_ingredienteConfigurado != null)
         {
-            NodeMap mapa = nodoOliva.GetComponentInParent<NodeMap>();
+            NodeMap mapa = nodoOliva.nodeMap;
             if (mapa != null)
             {
                 nodosVecinosActuales = _ingredienteConfigurado.CalcularNodosAfectados(nodoOrigenAlmacenado, mapa);
             }
         }
 
-        // Actualizar ingredientes en rango con los nodos actuales
+        // Update ingredients in range with the current nodes
         ActualizarIngredientesEnRango(nodosVecinosActuales);
     }
 
-    [ServerRpc(RequireOwnership = false)]
-    private void AplicarEfectoASingleNetworkIdServerRpc(ulong id, int aumento)
-    {
-        // Primero preparar el componente en los clientes para evitar errores
-        PrepararObjetivoClientRpc(id);
-
-        // Localizar objeto
-        if (!NetworkManager.Singleton.SpawnManager.SpawnedObjects.TryGetValue(id, out NetworkObject objetivoNetObj))
-            return;
-
-        GameObject objetivo = objetivoNetObj.gameObject;
-
-        // Iniciar la coroutine para esperar a que todo esté registrado
-        StartCoroutine(AplicarEfectoConDelay(objetivo, aumento, id));
-    }
-
+    /// <summary>
+    /// Applies the effect to a specific ingredient with a delay to ensure synchronization
+    /// </summary>
     private IEnumerator AplicarEfectoConDelay(GameObject objetivo, int aumento, ulong id)
     {
-        // Esperar para asegurar que el componente se haya registrado
+        // Wait to ensure the component has been registered
         yield return new WaitForSeconds(0.1f);
 
-        // Asegurarse de que tiene el componente ModificadorRecurso
+        if (objetivo == null) yield break;
+
+        // Get or add the ModificadorRecurso component
         ModificadorRecurso mod = objetivo.GetComponent<ModificadorRecurso>();
         if (mod == null)
         {
             mod = objetivo.AddComponent<ModificadorRecurso>();
 
-            // Asignar recurso base
+            // Assign the base resource
             componente ingrediente = objetivo.GetComponent<componente>();
             if (ingrediente != null && ingrediente.data != null)
             {
@@ -206,190 +231,174 @@ public class OlivaNEffectManager : NetworkBehaviour, IEffectManager
             }
         }
 
-        // Verificar ANTES del aumento
+        // Check BEFORE the increase
         int rangoAntes = mod.GetRangoActual();
 
-        // Modificación DIRECTA en el servidor (no usar AumentarRango)
-        mod.modificacionRango.Value += aumento;
+        // Use direct modification on the server
+        mod.AumentarRango(aumento);
 
-        // Verificar DESPUÉS del aumento
+        // Check AFTER the increase
         int rangoDespues = mod.GetRangoActual();
 
-        Debug.Log($"Oliva_N: Aplicado aumento a {objetivo.name}. Rango: {rangoAntes} -> {rangoDespues} (+{aumento})");
+        if (mostrarDebug)
+        {
+            Debug.Log($"Oliva_N: Aplicado aumento a {objetivo.name}. Rango: {rangoAntes} -> {rangoDespues} (+{aumento})");
+        }
 
-        // Notificar al cliente para efectos visuales
+        // Notify the client for visual effects
         AplicarEfectoClientRpc(id, aumento);
     }
 
-    [ClientRpc]
-    private void PrepararObjetivoClientRpc(ulong id)
+    /// <summary>
+    /// Removes the effect from an ingredient
+    /// </summary>
+    private void RemoverEfectoIngrediente(GameObject objetivo, int cantidad)
     {
-        // Localizar objeto objetivo en el cliente
-        if (!NetworkManager.Singleton.SpawnManager.SpawnedObjects.TryGetValue(id, out NetworkObject objetivoNetObj))
-            return;
+        if (objetivo == null) return;
 
-        // Verificamos si ya existe el ModificadorRecurso en el cliente
-        ModificadorRecurso mod = objetivoNetObj.gameObject.GetComponent<ModificadorRecurso>();
-        if (mod == null)
-        {
-            mod = objetivoNetObj.gameObject.AddComponent<ModificadorRecurso>();
-
-            // Obtener recurso del componente
-            componente comp = objetivoNetObj.gameObject.GetComponent<componente>();
-            if (comp != null && comp.data != null)
-            {
-                mod.SetRecursoBase(comp.data);
-            }
-        }
-
-        Debug.Log($"[CLIENTE] Preparado objeto {objetivoNetObj.name} para recibir efecto");
-    }
-
-    [ClientRpc]
-    private void AplicarEfectoClientRpc(ulong id, int aumento)
-    {
-        // Localizar objeto objetivo en el cliente
-        if (!NetworkManager.Singleton.SpawnManager.SpawnedObjects.TryGetValue(id, out NetworkObject objetivoNetObj))
-            return;
-
-        Debug.Log($"[CLIENTE] Efecto aplicado a {objetivoNetObj.name}, aumento: {aumento}");
-    }
-
-    [ClientRpc]
-    private void AplicarEfectoASingleNetworkIdClientRpc(ulong id, int aumento)
-    {
-        // Localizar objeto objetivo en el cliente
-        if (!NetworkManager.Singleton.SpawnManager.SpawnedObjects.TryGetValue(id, out NetworkObject objetivoNetObj))
-            return;
-
-        // Verificamos si ya existe el ModificadorRecurso en el cliente
-        ModificadorRecurso mod = objetivoNetObj.gameObject.GetComponent<ModificadorRecurso>();
-        if (mod == null)
-        {
-            Debug.LogWarning($"[CLIENTE] ModificadorRecurso no encontrado en {objetivoNetObj.name}, añadiendo...");
-            mod = objetivoNetObj.gameObject.AddComponent<ModificadorRecurso>();
-
-            // Obtener recurso del componente
-            componente comp = objetivoNetObj.gameObject.GetComponent<componente>();
-            if (comp != null && comp.data != null)
-            {
-                mod.SetRecursoBase(comp.data);
-            }
-        }
-
-        Debug.Log($"[CLIENTE] Efecto aplicado a {objetivoNetObj.name}, aumento: {aumento}");
-    }
-
-
-    // Reemplazar este otro método también
-    [ServerRpc(RequireOwnership = false)]
-    private void EliminarEfectoDeNetworkIdServerRpc(ulong id)
-    {
-        // Localizar objeto objetivo
-        if (!NetworkManager.Singleton.SpawnManager.SpawnedObjects.TryGetValue(id, out NetworkObject objetivoNetObj))
-            return;
-
-        // Eliminar modificador
-        ModificadorRecurso mod = objetivoNetObj.gameObject.GetComponent<ModificadorRecurso>();
+        // Get the ModificadorRecurso component
+        ModificadorRecurso mod = objetivo.GetComponent<ModificadorRecurso>();
         if (mod != null)
         {
             int rangoAntes = mod.GetRangoActual();
 
-            // Usar modificación directa en lugar de RPC
-            mod.DisminuirRango(cantidadAumento.Value);
+            // Use direct modification
+            mod.DisminuirRango(cantidad);
 
             int rangoDespues = mod.GetRangoActual();
-            Debug.Log($"Oliva_N: Eliminado aumento de {objetivoNetObj.name}. Rango: {rangoAntes} -> {rangoDespues}");
-        }
 
-        // Notificar al cliente
-        EliminarEfectoDeNetworkIdClientRpc(id);
+            if (mostrarDebug)
+            {
+                Debug.Log($"Oliva_N: Eliminado aumento de {objetivo.name}. Rango: {rangoAntes} -> {rangoDespues} (-{cantidad})");
+            }
+        }
     }
 
+    /// <summary>
+    /// Prepares clients to receive the effect by ensuring the ModificadorRecurso component exists
+    /// </summary>
+    [ClientRpc]
+    private void PrepararObjetivoClientRpc(ulong id)
+    {
+        // Locate the target object on the client
+        if (!NetworkManager.Singleton.SpawnManager.SpawnedObjects.TryGetValue(id, out NetworkObject objetivoNetObj))
+            return;
+
+        // Check if the ModificadorRecurso component already exists on the client
+        ModificadorRecurso mod = objetivoNetObj.gameObject.GetComponent<ModificadorRecurso>();
+        if (mod == null)
+        {
+            mod = objetivoNetObj.gameObject.AddComponent<ModificadorRecurso>();
+
+            // Get the resource from the component
+            componente comp = objetivoNetObj.gameObject.GetComponent<componente>();
+            if (comp != null && comp.data != null)
+            {
+                mod.SetRecursoBase(comp.data);
+            }
+        }
+
+        if (mostrarDebug)
+        {
+            Debug.Log($"[CLIENTE] Preparado objeto {objetivoNetObj.name} para recibir efecto");
+        }
+    }
+
+    /// <summary>
+    /// Notifies clients that an effect has been applied
+    /// </summary>
+    [ClientRpc]
+    private void AplicarEfectoClientRpc(ulong id, int aumento)
+    {
+        // Locate the target object on the client
+        if (!NetworkManager.Singleton.SpawnManager.SpawnedObjects.TryGetValue(id, out NetworkObject objetivoNetObj))
+            return;
+
+        if (mostrarDebug)
+        {
+            Debug.Log($"[CLIENTE] Efecto aplicado a {objetivoNetObj.name}, aumento: {aumento}");
+        }
+    }
+
+    /// <summary>
+    /// Notifies clients that an effect has been removed
+    /// </summary>
     [ClientRpc]
     private void EliminarEfectoDeNetworkIdClientRpc(ulong id)
     {
-        Debug.Log($"Cliente: Oliva_N eliminó aumento de rango de objeto con ID {id}");
-
-        // Aquí podrías eliminar efectos visuales asociados
-        if (NetworkManager.Singleton.SpawnManager.SpawnedObjects.TryGetValue(id, out NetworkObject objetivoNetObj))
+        if (mostrarDebug)
         {
-            // Ejemplo: Eliminar efecto visual
-            // QuitarEfectoVisual(objetivoNetObj.gameObject);
-        }
-    }
-
-    [ServerRpc(RequireOwnership = false)]
-    private void AplicarEfectoServerRpc(ulong[] objetivosIds, int aumento)
-    {
-        foreach (ulong id in objetivosIds)
-        {
-            // Localizar objeto objetivo
-            if (!NetworkManager.Singleton.SpawnManager.SpawnedObjects.TryGetValue(id, out NetworkObject objetivoNetObj))
-                continue;
-
-            // Aplicar modificador
-            ModificadorRecurso mod = objetivoNetObj.gameObject.GetComponent<ModificadorRecurso>();
-            if (mod == null)
-                mod = objetivoNetObj.gameObject.AddComponent<ModificadorRecurso>();
-
-            mod.AumentarRangoServerRpc(aumento);
+            Debug.Log($"Cliente: Oliva_N eliminó aumento de rango de objeto con ID {id}");
         }
 
-        // Notificar a todos los clientes
-        AplicarEfectoClientRpc(objetivosIds, aumento);
+        // Here you could remove any visual effects associated with the range increase
     }
 
-    [ClientRpc]
-    private void AplicarEfectoClientRpc(ulong[] objetivosIds, int aumento)
-    {
-        Debug.Log($"Efecto Oliva_N aplicado a {objetivosIds.Length} ingredientes con aumento de rango de {aumento}");
-    }
-
-    // Implementación de LimpiarEfecto de IEffectManager
+    /// <summary>
+    /// Cleans up the effect and all associated resources
+    /// </summary>
     public void LimpiarEfecto()
     {
-        Debug.Log("OlivaNEffectManager: LimpiarEfecto llamado");
+        if (mostrarDebug)
+        {
+            Debug.Log("OlivaNEffectManager: LimpiarEfecto llamado");
+        }
 
-        // Detener la comprobación periódica
-        CancelInvoke("ComprobarIngredientesEnRango");
+        // Stop the periodic check
+        CancelInvoke(nameof(ComprobarIngredientesEnRango));
         efectoActivo = false;
 
         if (IsServer)
         {
-            // Eliminar el efecto de todos los ingredientes afectados
+            // Remove the effect from all affected ingredients
             foreach (ulong id in networkIds)
             {
-                EliminarEfectoDeNetworkIdServerRpc(id);
+                if (NetworkManager.Singleton.SpawnManager.SpawnedObjects.TryGetValue(id, out NetworkObject objetivoNetObj))
+                {
+                    RemoverEfectoIngrediente(objetivoNetObj.gameObject, cantidadAumento.Value);
+                }
+                EliminarEfectoDeNetworkIdClientRpc(id);
             }
 
             LimpiarEfectoServerRpc();
         }
     }
 
+    /// <summary>
+    /// Server RPC to clean up the effect
+    /// </summary>
     [ServerRpc(RequireOwnership = false)]
     private void LimpiarEfectoServerRpc()
     {
-        // Notificar a los clientes y eliminar el objeto
+        // Notify clients and destroy the object
         LimpiarEfectoClientRpc();
 
-        // Auto-destrucción después de un pequeño retraso
+        // Self-destruct after a small delay
         StartCoroutine(DestroyAfterDelay(0.2f));
     }
 
+    /// <summary>
+    /// Client RPC to clean up the effect
+    /// </summary>
     [ClientRpc]
     private void LimpiarEfectoClientRpc()
     {
-        Debug.Log("Limpiando efecto Oliva_N");
+        if (mostrarDebug)
+        {
+            Debug.Log("Limpiando efecto Oliva_N");
+        }
     }
 
+    /// <summary>
+    /// Destroys the manager after a delay
+    /// </summary>
     private IEnumerator DestroyAfterDelay(float delay)
     {
         yield return new WaitForSeconds(delay);
 
         if (IsSpawned && GetComponent<NetworkObject>() != null)
         {
-            GetComponent<NetworkObject>().Despawn(true); // true para destruir el objeto en todos los clientes
+            GetComponent<NetworkObject>().Despawn(true); // true to destroy the object on all clients
         }
         else if (gameObject != null)
         {
@@ -399,10 +408,10 @@ public class OlivaNEffectManager : NetworkBehaviour, IEffectManager
 
     private void OnDestroy()
     {
-        // Asegurarse de que se limpie todo
-        CancelInvoke("ComprobarIngredientesEnRango");
+        // Make sure everything is cleaned up
+        CancelInvoke(nameof(ComprobarIngredientesEnRango));
 
-        // Solo limpiar efectos si estamos spawneados (para evitar llamadas duplicadas)
+        // Only clean up effects if we're spawned (to avoid duplicate calls)
         if (IsSpawned)
         {
             LimpiarEfecto();
