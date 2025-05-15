@@ -37,7 +37,7 @@ public class GlobalGameManager : NetworkBehaviour
         GameObject tablero = Instantiate(tableroPrefab, spawnPos, Quaternion.identity);
 
         // Generar nodos del mapa
-        var nodeMap = tablero.GetComponent<NodeMap>();
+        var nodeMap = tablero.GetComponentInChildren<NodeMap>();
         nodeMap.Generate3DTilemap();
 
         tablero.GetComponent<NetworkObject>().SpawnWithOwnership(clientId);
