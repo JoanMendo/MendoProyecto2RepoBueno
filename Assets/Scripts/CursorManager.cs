@@ -48,7 +48,7 @@ public class CursorManager : MonoBehaviour
         Vector3 cameraForward = mainCamera.transform.forward;
 
         // Convertir la posición del mouse a coordenadas del mundo
-        Vector3 worldMousePosition = mainCamera.ScreenToWorldPoint(mousePosition) + cameraForward*3;
+        Vector3 worldMousePosition = mainCamera.ScreenToWorldPoint(mousePosition) + cameraForward*2;
 
         // Ajustar la posición del cursor en el mundo
         transform.position = worldMousePosition;
@@ -63,7 +63,7 @@ public class CursorManager : MonoBehaviour
 
             gameObject.transform.localScale = new Vector3(initialScale, initialScale, initialScale); // Ajustar la escala del cursor
             gameObject.transform.rotation = Quaternion.Euler(27.7831211f, 79.9371033f, -4.82511587e-06f);
-            gameObject.GetComponent<MeshFilter>().mesh = cursorPrefab.GetComponent<MeshFilter>().sharedMesh; // Cambia la malla del cursor
+            gameObject.GetComponent<MeshFilter>().sharedMesh = cursorPrefab.GetComponent<MeshFilter>().sharedMesh; // Cambia la malla del cursor
             gameObject.GetComponent<MeshRenderer>().materials = cursorPrefab.GetComponent<MeshRenderer>().sharedMaterials;
         }
 

@@ -9,9 +9,9 @@ public abstract class AbstractIngredient : NetworkBehaviour
     public Node node; // Nodo al que pertenece el ingrediente
     public abstract void Efecto();
 
-    public float verticalOffset = 2.0f;
-    public Color textColor = Color.white;
-    public float fontSize = 2.0f;
+
+
+    public float fontSize = 25.0f;
 
     protected GameObject textObj;
     protected TextMeshPro textMeshPro;
@@ -22,22 +22,26 @@ public abstract class AbstractIngredient : NetworkBehaviour
         textObj = new GameObject("FloatingTextTMP");
 
         // Hacer hijo del objeto actual
-        textObj.transform.SetParent(transform);
+        textObj.transform.SetParent(transform, true);
 
         // Posicionar encima del objeto
-        textObj.transform.localPosition = new Vector3(0, verticalOffset, 0);
+        textObj.transform.localPosition = new Vector3(0, 0, 0);
+
 
         // Añadir componente TextMeshPro
         textMeshPro = textObj.AddComponent<TextMeshPro>();
         textMeshPro.text = actualValue.ToString();
         textMeshPro.fontSize = fontSize;
-        textMeshPro.color = textColor;
+        textMeshPro.color = Color.red;
+        textMeshPro.fontStyle = FontStyles.Bold;
         textMeshPro.alignment = TextAlignmentOptions.Center;
         textMeshPro.rectTransform.pivot = new Vector2(0.5f, 0);
 
         // Para evitar que se corte el texto
         textMeshPro.textWrappingMode = TextWrappingModes.NoWrap;
         textMeshPro.isOverlay = true;
+
+        textObj.AddComponent<LookAtCameraTMP>();
 
 
     }

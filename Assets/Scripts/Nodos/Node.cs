@@ -25,6 +25,8 @@ public class Node : NetworkBehaviour, IInteractuable
         cursorManager.ResetPointerMesh(); // Resetea el mesh del cursor
 
 
+        NodeMap nodeMap = FindFirstObjectByType<NodeMap>();
+        nodeMap.ExecuteAllNodeIngredientEffects(); // Ejecuta los efectos de todos los ingredientes en el mapa
 
     }
 

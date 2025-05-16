@@ -13,16 +13,19 @@ public class maizScript : AbstractIngredient
 
     public override void Efecto()
     {
-        actualValue = 1;
-        Vector2 position = node.position;
-        NodeMap nodeMap = FindFirstObjectByType<NodeMap>();
-        HashSet<System.Type> tiposUnicos = new HashSet<System.Type>(); // Para evitar tipos repetidos
+        initialValue = 1;
+        actualValue = initialValue;
 
-        for (float i = node.position.x - 1; i <= node.position.x + 1; i++)
+        NodeMap nodeMap = FindFirstObjectByType<NodeMap>();
+        HashSet<System.Type> tiposUnicos = new HashSet<System.Type>();
+
+        Vector2 position = node.position;
+
+        for (int i = Mathf.FloorToInt(position.x - 1); i <= Mathf.FloorToInt(position.x + 1); i++)
         {
-            for (float j = node.position.y - 1; j <= node.position.y + 1; j++)
+            for (int j = Mathf.FloorToInt(position.y - 1); j <= Mathf.FloorToInt(position.y + 1); j++)
             {
-                if (i == node.position.x && j == node.position.y) continue;
+                if (i == (int)position.x && j == (int)position.y) continue;
 
                 Node targetNode = nodeMap.GetNodeAtPosition(new Vector2(i, j));
                 if (targetNode != null && targetNode.hasIngredient)
@@ -30,25 +33,20 @@ public class maizScript : AbstractIngredient
                     AbstractIngredient ingrediente = targetNode.currentIngredient.GetComponent<AbstractIngredient>();
                     if (ingrediente != null)
                     {
-                        System.Type tipo = ingrediente.GetType();
-                        if (!tiposUnicos.Contains(tipo))
-                        {
-                            tiposUnicos.Add(tipo);
-                            // Aquí puedes aplicar lógica específica si quieres
-                            Debug.Log($"Ingrediente único encontrado: {tipo.Name}");
-                        }
+                        tiposUnicos.Add(ingrediente.GetType()); // Solo se guarda un tipo único
                     }
                 }
             }
         }
 
-        foreach (System.Type tipo in tiposUnicos)
-        {
-                actualValue = initialValue ++ ; // Si hay un maíz, el valor se duplica
-                break; // Salimos del bucle si encontramos un maíz
-            
-        }
+        // Suma 1 por cada tipo único (ya incluye initialValue = 1)
+        actualValue += tiposUnicos.Count;
 
-        textObj.GetComponent<TextMeshPro>().text = actualValue.ToString();
+        // Actualiza el texto flotante
+        if (textMeshPro != null)
+        {
+            textMeshPro.text = actualValue.ToString();
+        }
     }
+
 }

@@ -19,8 +19,6 @@ public class SetCurrentIngredient : MonoBehaviour, IInteractuable
         cursor.transform.localScale = Ingredient.transform.localScale * cursorManager.initialScale;
         cursor.transform.rotation = transform.rotation;
 
-        NodeMap nodeMap = FindFirstObjectByType<NodeMap>();
-        nodeMap.ExecuteAllNodeIngredientEffects(); // Ejecuta los efectos de todos los ingredientes en el mapa
 
         // Copia los materiales del ingrediente al cursor
         Material[] materials = GetComponent<MeshRenderer>().sharedMaterials;

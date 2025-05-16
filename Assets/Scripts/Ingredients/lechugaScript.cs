@@ -12,29 +12,33 @@ public class lechugaScript : AbstractIngredient
     }
     public override void Efecto()
     {
+        Debug.Log("Efecto de lechuga activado, valor actial: " +  actualValue);
         actualValue = 1;
-        Vector2 position = node.position; // Obtiene la posición del nodo
+        Vector2 position = node.position;
         NodeMap nodeMap = FindFirstObjectByType<NodeMap>();
 
-        for (float i = node.position.x-1; i < node.position.x+1; i++)
+        for (int i = Mathf.FloorToInt(position.x - 1); i <= Mathf.FloorToInt(position.x + 1); i++)
         {
-            for (float j = node.position.y - 1; j < node.position.y+1; j++)
+            for (int j = Mathf.FloorToInt(position.y - 1); j <= Mathf.FloorToInt(position.y + 1); j++)
             {
-                if (i == node.position.x && j == node.position.y) continue; // Evita aplicar el efecto en el nodo actual
+                if (i == position.x && j == position.y) continue;
 
-                Node targetNode = nodeMap.GetNodeAtPosition(new Vector2(i, j)); // Obtiene el nodo objetivo
-                if (targetNode != null && targetNode.hasIngredient) // Verifica si el nodo objetivo tiene un ingrediente
+                Node targetNode = nodeMap.GetNodeAtPosition(new Vector2(i, j));
+                if (targetNode != null && targetNode.hasIngredient)
                 {
-                    if (targetNode.currentIngredient.TryGetComponent<lechugaScript>(out lechugaScript lechuga)) // Verifica si el ingrediente es una lechuga
+                    if (targetNode.currentIngredient.TryGetComponent<lechugaScript>(out lechugaScript lechuga))
                     {
                         actualValue++;
                     }
-
                 }
             }
         }
-        textObj.GetComponent<TextMeshPro>().text = actualValue.ToString();
+
+        Debug.Log("Efecto de lechuga activado, valor actial: " + actualValue);
+        if (textMeshPro != null)
+            textMeshPro.text = actualValue.ToString();
     }
 }
-  
+
+
 

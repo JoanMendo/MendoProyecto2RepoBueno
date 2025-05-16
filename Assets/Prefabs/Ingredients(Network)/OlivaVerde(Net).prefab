@@ -191,5 +191,5 @@ MonoBehaviour:
   actualValue: 0
   node: {fileID: 0}
   verticalOffset: 2
-  textColor: {r: 1, g: 1, b: 1, a: 1}
-  fontSize: 2
+  textColor: {r: 0, g: 0, b: 0, a: 1}
+  fontSize: 25

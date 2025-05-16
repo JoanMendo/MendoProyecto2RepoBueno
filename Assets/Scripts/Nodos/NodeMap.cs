@@ -95,6 +95,7 @@ public class NodeMap : NetworkBehaviour
 
     public void ExecuteAllNodeIngredientEffects()
     {
+        Debug.Log("Ejecutando efectos de todos los ingredientes en el mapa");
         foreach (GameObject node in nodesList)
         {
             Node nodeComponent = node.GetComponent<Node>();

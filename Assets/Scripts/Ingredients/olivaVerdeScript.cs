@@ -17,9 +17,9 @@ public class olivaVerdeScript : AbstractIngredient
         NodeMap nodeMap = FindFirstObjectByType<NodeMap>();
         int olivasNegras = 0; // Bandera para verificar si se encontró un ingrediente en el área de efecto
 
-        for (float i = node.position.x-1; i < node.position.x+1; i++)
+        for (float i = node.position.x-1; i <= node.position.x+1; i++)
         {
-            for (float j = node.position.y - 1; j < node.position.y+1; j++)
+            for (float j = node.position.y - 1; j <= node.position.y+1; j++)
             {
                 if (i == node.position.x && j == node.position.y) continue; // Evita aplicar el efecto en el nodo actual
 
