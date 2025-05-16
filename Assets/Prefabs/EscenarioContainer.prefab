@@ -425,6 +425,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: Ternera
       objectReference: {fileID: 0}
+    - target: {fileID: 2305179757331706274, guid: 94c82748c2985154abd4b80421a6a4da, type: 3}
+      propertyPath: m_IsActive
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 7816220357468687268, guid: 94c82748c2985154abd4b80421a6a4da, type: 3}
       propertyPath: m_LocalPosition.x
       value: 27.18
@@ -672,6 +676,10 @@ PrefabInstance:
     - target: {fileID: 2305179757331706274, guid: e80a0229887ec754c8a850798683443d, type: 3}
       propertyPath: m_Name
       value: Pollo
+      objectReference: {fileID: 0}
+    - target: {fileID: 2305179757331706274, guid: e80a0229887ec754c8a850798683443d, type: 3}
+      propertyPath: m_IsActive
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 7816220357468687268, guid: e80a0229887ec754c8a850798683443d, type: 3}
       propertyPath: m_LocalPosition.x

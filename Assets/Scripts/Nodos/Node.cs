@@ -15,7 +15,9 @@ public class Node : NetworkBehaviour, IInteractuable
     public void SetNodeIngredient (GameObject prefabingredient)
     {
         hasIngredient = true; // Cambia el estado del nodo a "tiene ingrediente"
+        LocalGameManager.Instance.ingredientCount++; // Asigna el objeto de recurso actual al GameManager
         currentIngredient = Instantiate(prefabingredient, gameObject.transform.position, prefabingredient.transform.rotation);
+        currentIngredient.GetComponent<AbstractIngredient>().node = this; // Asigna el nodo al ingrediente
         NetworkObject nodeNetworkObject = currentIngredient.GetComponent<NetworkObject>(); // Obtiene el componente NetworkObject del ingrediente
         nodeNetworkObject.Spawn(); // Asigna la propiedad del objeto al cliente que posee el nodo
 
@@ -28,7 +30,7 @@ public class Node : NetworkBehaviour, IInteractuable
 
     public void Interactuar()
     {
-        if (hasIngredient) return; // Si el nodo ya tiene un ingrediente, no hacer nada
+        if (hasIngredient || LocalGameManager.Instance.ingredientCount >= LocalGameManager.Instance.maxIngredients) return; // Si el nodo ya tiene un ingrediente, no hacer nada
        SetNodeIngredient(LocalGameManager.Instance.currentIngredient); // Asigna el objeto de recurso actual al GameManager
     }
 }

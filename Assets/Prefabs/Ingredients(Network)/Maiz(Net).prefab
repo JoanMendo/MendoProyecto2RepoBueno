@@ -14,6 +14,7 @@ GameObject:
   - component: {fileID: 7925393989728248451}
   - component: {fileID: -7675765042938916654}
   - component: {fileID: -6646556860596380331}
+  - component: {fileID: 2875332019880478809}
   m_Layer: 0
   m_Name: Maiz(Net)
   m_TagString: Untagged
@@ -173,3 +174,19 @@ MonoBehaviour:
   SwitchTransformSpaceWhenParented: 0
   Interpolate: 1
   SlerpPosition: 0
+--- !u!114 &2875332019880478809
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2305179757331706274}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 58fbece65e0e34846ab989e6635f58b9, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  ShowTopMostFoldoutHeaderGroup: 1
+  initialValue: 0
+  actualValue: 0
+  node: {fileID: 0}

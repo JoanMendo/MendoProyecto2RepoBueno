@@ -80,5 +80,30 @@ public class NodeMap : NetworkBehaviour
         }
     }
 
+    public Node GetNodeAtPosition(Vector2 position)
+    {
+        foreach (GameObject node in nodesList)
+        {
+            Node nodeComponent = node.GetComponent<Node>();
+            if (nodeComponent.position == position)
+            {
+                return nodeComponent;
+            }
+        }
+        return null; // Si no se encuentra el nodo, devuelve null
+    }
+
+    public void ExecuteAllNodeIngredientEffects()
+    {
+        foreach (GameObject node in nodesList)
+        {
+            Node nodeComponent = node.GetComponent<Node>();
+            if (nodeComponent.hasIngredient)
+            {
+                nodeComponent.currentIngredient.GetComponent<AbstractIngredient>().Efecto();
+            }
+        }
+    }
+
 }
 

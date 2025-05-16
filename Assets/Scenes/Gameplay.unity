@@ -359,6 +359,7 @@ GameObject:
   m_Component:
   - component: {fileID: 697972869}
   - component: {fileID: 697972870}
+  - component: {fileID: 697972872}
   - component: {fileID: 697972871}
   m_Layer: 0
   m_Name: LocalGameManager
@@ -408,10 +409,36 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: be315c8adb71b15489eff6fe1709c64e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  ShowTopMostFoldoutHeaderGroup: 1
   turnoActual: 1
   maxTurnos: 10
   faseActual: 0
   victoria: {fileID: 0}
+--- !u!114 &697972872
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 697972868}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d5a57f767e5e46a458fc5d3c628d0cbb, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  GlobalObjectIdHash: 1850612516
+  InScenePlacedSourceGlobalObjectIdHash: 0
+  DeferredDespawnTick: 0
+  Ownership: 1
+  AlwaysReplicateAsRoot: 0
+  SynchronizeTransform: 1
+  ActiveSceneSynchronization: 0
+  SceneMigrationSynchronization: 1
+  SpawnWithObservers: 1
+  DontDestroyWithOwner: 0
+  AutoObjectParentSync: 1
+  SyncOwnerTransformWhenParented: 1
+  AllowOwnerToParent: 0
 --- !u!1001 &837159363
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -424,53 +451,21 @@ PrefabInstance:
       propertyPath: mainCamera
       value: 
       objectReference: {fileID: 1983953450}
-    - target: {fileID: 956118200475391074, guid: e4255f343d92b2e45a07829f7bcdd3ae, type: 3}
-      propertyPath: cursorPrefab
-      value: 
-      objectReference: {fileID: 1892633075351900575, guid: e4255f343d92b2e45a07829f7bcdd3ae, type: 3}
-    - target: {fileID: 956118200475391074, guid: e4255f343d92b2e45a07829f7bcdd3ae, type: 3}
-      propertyPath: TilesLayer.m_Bits
-      value: 64
-      objectReference: {fileID: 0}
-    - target: {fileID: 1382294294568084874, guid: e4255f343d92b2e45a07829f7bcdd3ae, type: 3}
-      propertyPath: m_Radius
-      value: 2.209689
-      objectReference: {fileID: 0}
-    - target: {fileID: 1382294294568084874, guid: e4255f343d92b2e45a07829f7bcdd3ae, type: 3}
-      propertyPath: m_Center.x
-      value: -1.2590514
-      objectReference: {fileID: 0}
-    - target: {fileID: 1382294294568084874, guid: e4255f343d92b2e45a07829f7bcdd3ae, type: 3}
-      propertyPath: m_Center.y
-      value: 0.009891757
-      objectReference: {fileID: 0}
-    - target: {fileID: 1382294294568084874, guid: e4255f343d92b2e45a07829f7bcdd3ae, type: 3}
-      propertyPath: m_Center.z
-      value: 2.129379
-      objectReference: {fileID: 0}
     - target: {fileID: 1892633075351900575, guid: e4255f343d92b2e45a07829f7bcdd3ae, type: 3}
       propertyPath: m_Name
       value: Cursor
       objectReference: {fileID: 0}
-    - target: {fileID: 1892633075351900575, guid: e4255f343d92b2e45a07829f7bcdd3ae, type: 3}
-      propertyPath: m_Layer
-      value: 2
-      objectReference: {fileID: 0}
     - target: {fileID: 3066293669700548836, guid: e4255f343d92b2e45a07829f7bcdd3ae, type: 3}
       propertyPath: m_LocalScale.x
-      value: 0.8
-      objectReference: {fileID: 0}
-    - target: {fileID: 3066293669700548836, guid: e4255f343d92b2e45a07829f7bcdd3ae, type: 3}
-      propertyPath: m_LocalScale.y
-      value: 0.8
+      value: 0.8000002
       objectReference: {fileID: 0}
     - target: {fileID: 3066293669700548836, guid: e4255f343d92b2e45a07829f7bcdd3ae, type: 3}
       propertyPath: m_LocalScale.z
-      value: 0.8
+      value: 0.8000002
       objectReference: {fileID: 0}
     - target: {fileID: 3066293669700548836, guid: e4255f343d92b2e45a07829f7bcdd3ae, type: 3}
       propertyPath: m_LocalPosition.x
-      value: 14.614646
+      value: 14.614647
       objectReference: {fileID: 0}
     - target: {fileID: 3066293669700548836, guid: e4255f343d92b2e45a07829f7bcdd3ae, type: 3}
       propertyPath: m_LocalPosition.y
@@ -506,10 +501,6 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 3066293669700548836, guid: e4255f343d92b2e45a07829f7bcdd3ae, type: 3}
       propertyPath: m_LocalEulerAnglesHint.z
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 6178598550285060206, guid: e4255f343d92b2e45a07829f7bcdd3ae, type: 3}
-      propertyPath: m_CastShadows
       value: 0
       objectReference: {fileID: 0}
     m_RemovedComponents: []

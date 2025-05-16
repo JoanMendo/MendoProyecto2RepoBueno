@@ -14,6 +14,7 @@ GameObject:
   - component: {fileID: 7925393989728248451}
   - component: {fileID: -7675765042938916654}
   - component: {fileID: -6646556860596380331}
+  - component: {fileID: -6794175275558964497}
   m_Layer: 0
   m_Name: Lechuga(Net)
   m_TagString: Untagged
@@ -173,3 +174,19 @@ MonoBehaviour:
   SwitchTransformSpaceWhenParented: 0
   Interpolate: 1
   SlerpPosition: 0
+--- !u!114 &-6794175275558964497
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2305179757331706274}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1c2aa7229a9351749a0daee6f74bc979, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  ShowTopMostFoldoutHeaderGroup: 1
+  initialValue: 0
+  actualValue: 0
+  node: {fileID: 0}

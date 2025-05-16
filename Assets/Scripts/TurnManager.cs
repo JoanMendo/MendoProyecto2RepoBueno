@@ -1,6 +1,8 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine;
+using Unity.Netcode;
 
 public enum FaseTurno
 {
@@ -9,7 +11,7 @@ public enum FaseTurno
     EjecucionAcciones,
     FinTurno
 }
-public class TurnManager : MonoBehaviour
+public class TurnManager : NetworkBehaviour
 {
     public int turnoActual = 1;
     public int maxTurnos = 10;
@@ -34,12 +36,13 @@ public class TurnManager : MonoBehaviour
         switch (faseActual)
         {
             case FaseTurno.ColocacionIngredientes:
-
+                LocalGameManager.Instance.ingredientCount = 0;
                 break;
             case FaseTurno.DespliegueUtensiliosEfectos:
-
+                LocalGameManager.Instance.utensilEffectsCount = 0;
                 break;
             case FaseTurno.EjecucionAcciones:
+                
 
                 PasarFaseSiguiente();
                 break;
@@ -60,10 +63,7 @@ public class TurnManager : MonoBehaviour
 
     public void PasarFaseSiguiente()
     {
-        foreach (ReadyButton readyButton in readyButtons)
-        {
-           // readyButton.isReady.Value = false;
-        }
+       
         switch (faseActual)
         {
             case FaseTurno.ColocacionIngredientes:
@@ -82,17 +82,24 @@ public class TurnManager : MonoBehaviour
     }
 
     // M�todo para que los jugadores indiquen que est�n listos (bot�n listo)
-    public void CheckPlayersReady()
+    public bool CheckPlayersReady()
     {
        foreach (ReadyButton readyButton in readyButtons)
         {
             if (!readyButton.isReady.Value)
             {
-                break;
+                return false;
             }
+            
         }
-       
-        PasarFaseSiguiente();   
+        foreach (ReadyButton readyButton in readyButtons)
+        {
+            readyButton.TryChangeReady();
+        }
+
+
+        PasarFaseSiguiente();
+        return true;
 
     }
 }
