@@ -13,6 +13,9 @@ public class CursorManager : MonoBehaviour
     private InputManager inputManager;
     private Vector3 mousePosition;
 
+    public AudioClip sonido;
+
+
     private void Awake()
     {
         if (mainCamera == null)
@@ -81,6 +84,9 @@ public class CursorManager : MonoBehaviour
                 GameObject hitObject = hit.collider.gameObject;
 
                 NetworkObject netObj = hitObject.GetComponentInParent<NetworkObject>();
+
+                AudioSource.PlayClipAtPoint(sonido, Camera.main.transform.position);
+
 
                 if (netObj != null)
                 {
